@@ -33,6 +33,7 @@ IF NOT "%BuildConfiguration%" == "debug" IF NOT "%BuildConfiguration%" == "relea
     GOTO :EOF
 )
 
+IF NOT EXIST "%GccDirectory%" SET GccDirectory=C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\Linux\gcc_arm
 IF NOT EXIST "%GccDirectory%" SET GccDirectory=C:\Program Files (x86)\GNU Tools ARM Embedded\6 2017-q2-update
 IF NOT EXIST "%GccDirectory%" SET GccDirectory=C:\Program Files\GNU Tools ARM Embedded\6 2017-q2-update
 
