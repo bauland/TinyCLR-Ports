@@ -1,0 +1,167 @@
+{
+  "version": "0.2.1",
+  "tasks": [
+    {
+      "taskName": "Build Cerb",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build Cerb"
+      ]
+    },
+    {
+      "taskName": "Build Electron",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build Electron"
+      ]
+    },
+    {
+      "taskName": "Build EMX",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build EMX"
+      ]
+    },
+    {
+      "taskName": "Build FEZCLR",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build FEZCLR"
+      ]
+    },
+    {
+      "taskName": "Build G30",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G30"
+      ]
+    },
+    {
+      "taskName": "Build G80",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G80"
+      ]
+    },
+    {
+      "taskName": "Build G120",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G120"
+      ]
+    },
+    {
+      "taskName": "Build G400",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G400"
+      ]
+    },
+    {
+      "taskName": "Build netduino3",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build netduino3"
+      ]
+    },
+    {
+      "taskName": "Clean Cerb",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build Cerb clean"
+      ]
+    },
+    {
+      "taskName": "Clean Electron",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build Electron clean"
+      ]
+    },
+    {
+      "taskName": "Clean EMX",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build EMX clean"
+      ]
+    },
+    {
+      "taskName": "Clean FEZCLR",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build FEZCLR clean"
+      ]
+    },
+    {
+      "taskName": "Clean G30",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G30 clean"
+      ]
+    },
+    {
+      "taskName": "Clean G80",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G80 clean"
+      ]
+    },
+    {
+      "taskName": "Clean G120",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G120 clean"
+      ]
+    },
+    {
+      "taskName": "Clean G400",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build G400 clean"
+      ]
+    },
+    {
+      "taskName": "Clean netduino3",
+      "appliesTo": "build.bat",
+      "type": "default",
+      "command": "${env.COMSPEC}",
+      "args": [
+        "build netduino3 clean"
+      ]
+    }
+  ]
+}
