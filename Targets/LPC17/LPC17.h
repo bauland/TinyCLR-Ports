@@ -331,8 +331,8 @@ TinyCLR_Result LPC17_I2c_SetActiveSettings(const TinyCLR_I2c_Provider* self, int
 TinyCLR_Result LPC17_I2c_ReadTransaction(const TinyCLR_I2c_Provider* self, uint8_t* buffer, size_t& length, TinyCLR_I2c_TransferStatus& result);
 TinyCLR_Result LPC17_I2c_WriteTransaction(const TinyCLR_I2c_Provider* self, const uint8_t* buffer, size_t& length, TinyCLR_I2c_TransferStatus& result);
 TinyCLR_Result LPC17_I2c_WriteReadTransaction(const TinyCLR_I2c_Provider* self, const uint8_t* writeBuffer, size_t& writeLength, uint8_t* readBuffer, size_t& readLength, TinyCLR_I2c_TransferStatus& result);
-void LPC17_I2c_StartTransaction();
-void LPC17_I2c_StopTransaction();
+void LPC17_I2c_StartTransaction(int32_t portId);
+void LPC17_I2c_StopTransaction(int32_t portId);
 
 // Time
 const TinyCLR_Api_Info* LPC17_Time_GetApi();
@@ -390,7 +390,7 @@ TinyCLR_Display_InterfaceType LPC17_Display_GetType(const TinyCLR_Display_Provid
 //Startup
 void LPC17_Startup_Initialize();
 void LPC17_Startup_GetHeap(uint8_t*& start, size_t& length);
-void LPC17_Startup_GetDebugger(const TinyCLR_Api_Info*& api, size_t& index);
+void LPC17_Startup_GetDebuggerTransportProvider(const TinyCLR_Api_Info*& api, size_t& index);
 void LPC17_Startup_GetRunApp(bool& runApp);
 
 extern const TinyCLR_Api_Provider* apiProvider;

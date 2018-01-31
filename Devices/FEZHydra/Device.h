@@ -25,11 +25,11 @@
 #define UART_DEBUGGER_INDEX 0
 #define USB_DEBUGGER_INDEX 0
 
-#define DEBUGGER_SELECTOR_PIN PIN(A, 25)
+#define DEBUGGER_SELECTOR_PIN PIN(B, 9)
 #define DEBUGGER_SELECTOR_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define DEBUGGER_SELECTOR_USB_STATE TinyCLR_Gpio_PinValue::High
 
-#define RUN_APP_PIN PIN(A, 4)
+#define RUN_APP_PIN PIN(B, 12)
 #define RUN_APP_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define RUN_APP_STATE TinyCLR_Gpio_PinValue::High
 
@@ -50,7 +50,7 @@
 
 
 #define INCLUDE_ADC
-#define AT91_ADC_PINS { { PIN(B,11), PS(D) }, { PIN(B,12), PS(D) }, { PIN(B,13), PS(D) }, { PIN(B,14), PS(D) }, { PIN(B,15), PS(D) }, { PIN(B,16), PS(D) }, { PIN(A,17), PS(D) }, { PIN(B,6), PS(D) }, { PIN(B,7), PS(D) }, { PIN(B,8), PS(D) }, { PIN(B,9), PS(D) }, { PIN(B,10), PS(D) } }
+#define AT91_ADC_PINS { { PIN(A, 17), PS(A) }, { PIN(A, 18), PS(A) }, { PIN(A, 19), PS(A) }, { PIN(A, 20), PS(A) }, { PIN(D ,6), PS(A) }, { PIN(D, 7), PS(A) } }
 
 #define INCLUDE_I2C
 #define AT91_I2C_SCL_PINS { { PIN(A,24), PS(A) } }
