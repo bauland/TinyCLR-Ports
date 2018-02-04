@@ -62,10 +62,10 @@
 
 #define INCLUDE_PWM 
 #define STM32F4_PWM_PINS {/*          0                       1                     2                      3                      */\
-                          /* TIM1  */ { { PIN(A, 8), AF(1) }, { PIN(A, 9), AF(1) }, { PIN(A, 10), AF(1) }, { PIN(A, 11), AF(1)  } },\
-                          /* TIM2  */ { { PIN(A, 0), AF(1) }, { PIN(A, 1), AF(1) }, { PIN(A,  2), AF(1) }, { PIN(A, 3), AF(1)   } },\
-                          /* TIM3  */ { { PIN(C, 6), AF(2) }, { PIN(C, 7), AF(2) }, { PIN(C,  8), AF(2) }, { PIN(C, 9), AF(2)   } },\
-                          /* TIM4  */ { { PIN(B, 6), AF(2) }, { PIN(B, 7), AF(2) }, { PIN(B,  8), AF(2) }, { PIN(B, 9), AF(2)   } },\
+                          /* TIM1  */ { { PIN(A, 8)  , AF(1)   }, { PIN_NONE  , AF_NONE }, { PIN_NONE  , AF_NONE }, { PIN_NONE  , AF_NONE } },\
+                          /* TIM2  */ { { PIN_NONE   , AF_NONE }, { PIN(A, 1) , AF(1)   }, { PIN(A, 2) , AF(1)   }, { PIN(A, 3) , AF(1)   } },\
+                          /* TIM3  */ { { PIN_NONE   , AF_NONE }, { PIN_NONE  , AF_NONE }, { PIN_NONE  , AF_NONE }, { PIN_NONE  , AF_NONE } },\
+                          /* TIM4  */ { { PIN(B, 6)  , AF(2)   }, { PIN(B, 7) , AF(2)   }, { PIN_NONE  , AF_NONE }, { PIN_NONE  , AF_NONE } },\
                          }
 
 #define INCLUDE_SPI 
