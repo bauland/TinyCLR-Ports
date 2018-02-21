@@ -16,6 +16,13 @@
 #include <stdio.h>
 
 #include "LPC17.h"
+
+#include "../../Drivers/SPIDisplay/SPIDisplay.h"
+
+void LPC17_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
+    apiProvider->Add(apiProvider, SPIDisplay_GetApi());
+}
+
 /*
 //-------- <<< Use Configuration Wizard in Context Menu >>> ------------------
 */

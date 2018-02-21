@@ -15,6 +15,12 @@
 
 #include "LPC24.h"
 
+#include "../../Drivers/SPIDisplay/SPIDisplay.h"
+
+void LPC24_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
+    apiProvider->Add(apiProvider, SPIDisplay_GetApi());
+}
+
 #define MEM_MAP_REG 0xE01FC040 // memory maping register
 
 // manually filled in
