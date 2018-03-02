@@ -21,7 +21,7 @@
 #define DEVICE_TARGET STM32F4
 #define DEVICE_NAME "clicker"
 #define DEVICE_MANUFACTURER "MikroElektronika"
-#define DEVICE_VERSION ((0ULL << 48) | (8ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (9ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5000
@@ -83,6 +83,7 @@
 
 #define INCLUDE_USBCLIENT
 #define STM32F4_USB_QUEUE_SIZE 16
+#define STM32F4_USB_FIFO_BUFFER_SIZE 32
 #define STM32F4_USB_DM_PINS { { PIN(A, 11), AF(10) } }
 #define STM32F4_USB_DP_PINS { { PIN(A, 12), AF(10) } }
 #define STM32F4_USB_VB_PINS { { PIN(A,  9), AF(10) } }

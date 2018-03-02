@@ -19,7 +19,7 @@
 #define DEVICE_TARGET LPC17
 #define DEVICE_NAME "G120"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (8ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (9ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5007
@@ -95,6 +95,7 @@
 
 #define INCLUDE_USBCLIENT
 #define LPC17_USB_QUEUE_SIZE 16
+#define LPC17_USB_FIFO_BUFFER_SIZE 64
 
 #define INCLUDE_DISPLAY
 #define LPC17_DISPLAY_CONTROLLER_PINS { { PIN(1, 20), PF(7) }, { PIN(1, 21), PF(7) }, { PIN(1, 22), PF(7) }, { PIN(1, 23), PF(7) }, { PIN(1, 24), PF(7) }, { PIN(1, 25), PF(7) }, { PIN(1, 26), PF(7) }, { PIN(1, 27), PF(7) }, { PIN(1, 28), PF(7)}, { PIN(1, 29), PF(7) }, { PIN(2, 2), PF(7) }, { PIN(2, 3), PF(7) }, { PIN(2, 5), PF(7) }, { PIN(2, 6), PF(7) }, { PIN(2, 7), PF(7) }, { PIN(2, 8), PF(7) }, { PIN(2, 9), PF(7) }, { PIN(2, 12), PF(5) }, { PIN(2, 13), PF(7) } }

@@ -17,7 +17,7 @@
 #define DEVICE_TARGET AT91
 #define DEVICE_NAME "FEZHydra"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (8ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (9ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5005
@@ -79,10 +79,15 @@
 #define INCLUDE_USBCLIENT
 #define TOTAL_USB_CONTROLLER 1
 #define AT91_USB_QUEUE_SIZE 16
+#define AT91_USB_FIFO_BUFFER_SIZE 64
 
 #define INCLUDE_DISPLAY
 #define AT91_DISPLAY_CONTROL_PINS { { PIN(C,1), PS(A) }, { PIN(C,3), PS(A) }, { PIN(C,4), PS(A) }, { PIN(C,5), PS(A) }, { PIN(C,6), PS(A) }, { PIN(C,7), PS(A) } }
 #define AT91_DISPLAY_DATA_PINS { { PIN(C,9), PS(B) }, { PIN(C,10), PS(B) }, { PIN(C,11), PS(B) }, { PIN(C,12), PS(B) }, { PIN(C,13), PS(B) }, { PIN(C,15), PS(B) }, { PIN(C,16), PS(B) }, { PIN(C,17), PS(B) }, { PIN(C,18), PS(B) }, { PIN(C,19), PS(B) }, { PIN(C,20), PS(B) }, { PIN(C,21), PS(B) }, { PIN(C,22), PS(B) }, { PIN(C,23), PS(B) }, { PIN(C,24), PS(B) }, { PIN(C,25), PS(B) } }
 #define AT91_DISPLAY_ENABLE_PIN { PIN(C, 7), PS(A) }
 
+#define AT45DB321D_SPI_CS  PIN(A,28)
+#define AT45DB321D_SPI_MODULE 0
+#define AT45DB321D_SPI_CLOCK_HZ 20000000
+ 
 #include <AT91.h>

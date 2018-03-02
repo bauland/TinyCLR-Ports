@@ -1,2 +1,0 @@
-TargetArchitecture:ARM9
-AdditionalDrivers:SPIDisplay

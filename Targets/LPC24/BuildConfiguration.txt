@@ -1,2 +1,0 @@
-TargetArchitecture:ARM7
-AdditionalDrivers:SPIDisplay

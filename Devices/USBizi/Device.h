@@ -17,7 +17,7 @@
 #define DEVICE_TARGET LPC24
 #define DEVICE_NAME "USBizi"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (8ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (9ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5002
@@ -87,6 +87,7 @@
 #define INCLUDE_USBCLIENT
 #define TOTAL_USB_CONTROLLER            1
 #define LPC24_USB_QUEUE_SIZE 16
+#define LPC24_USB_FIFO_BUFFER_SIZE 16
 
 #define LPC2387_PARTID_1                    0x1700FF35
 #define LPC2387_PARTID_2                    0x1800F935

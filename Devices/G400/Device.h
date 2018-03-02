@@ -17,7 +17,7 @@
 #define DEVICE_TARGET AT91
 #define DEVICE_NAME "G400"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (8ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (9ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5008
@@ -83,10 +83,15 @@
 #define INCLUDE_USBCLIENT
 #define TOTAL_USB_CONTROLLER 1
 #define AT91_USB_QUEUE_SIZE 16
+#define AT91_USB_FIFO_BUFFER_SIZE 64
 
 #define INCLUDE_DISPLAY
 #define AT91_DISPLAY_CONTROLLER_PINS { { PIN(C,0), PS(A) }, { PIN(C,1), PS(A) }, { PIN(C,2), PS(A) }, { PIN(C,3), PS(A) }, { PIN(C,4), PS(A) }, { PIN(C,5), PS(A) }, { PIN(C,6), PS(A) }, { PIN(C,7), PS(A) }, { PIN(C,8), PS(A) }, { PIN(C,9), PS(A) }, { PIN(C,10), PS(A) }, { PIN(C,11), PS(A) }, { PIN(C,12), PS(A) }, { PIN(C,13), PS(A) }, { PIN(C,14), PS(A) }, { PIN(C,15), PS(A) }, { PIN(C,24), PS(A) }, { PIN(C,26), PS(A) }, { PIN(C,27), PS(A) }, { PIN(C,28), PS(A) }, { PIN(C,30), PS(A) } }
 #define AT91_DISPLAY_BACKLIGHT_PIN { PIN_NONE, PS_NONE }
 #define AT91_DISPLAY_ENABLE_PIN { PIN(C, 29), PS(A) }
+
+#define AT45DB321D_SPI_CS  PIN(A,14)
+#define AT45DB321D_SPI_MODULE 0
+#define AT45DB321D_SPI_CLOCK_HZ 20000000
 
 #include <AT91.h>
