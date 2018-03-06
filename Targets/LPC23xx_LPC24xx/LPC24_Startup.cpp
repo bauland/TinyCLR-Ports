@@ -15,10 +15,37 @@
 
 #include "LPC24.h"
 
-#include "../../Drivers/SPIDisplay/SPIDisplay.h"
-
 void LPC24_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
-    apiProvider->Add(apiProvider, SPIDisplay_GetApi());
+#ifdef INCLUDE_ADC
+    LPC24_Adc_Reset();
+#endif
+#ifdef INCLUDE_CAN
+    LPC24_Can_Reset();
+#endif
+#ifdef INCLUDE_DAC
+    LPC24_Dac_Reset();
+#endif
+#ifdef INCLUDE_DISPLAY
+    LPC24_Display_Reset();
+#endif
+#ifdef INCLUDE_GPIO
+    LPC24_Gpio_Reset();
+#endif
+#ifdef INCLUDE_I2C
+    LPC24_I2c_Reset();
+#endif    
+#ifdef INCLUDE_PWM
+    LPC24_Pwm_Reset();
+#endif
+#ifdef INCLUDE_SPI
+    LPC24_Spi_Reset();
+#endif
+#ifdef INCLUDE_UART
+    LPC24_Uart_Reset();
+#endif
+#ifdef INCLUDE_USBCLIENT 
+    LPC24_UsbClient_Reset();
+#endif
 }
 
 #define MEM_MAP_REG 0xE01FC040 // memory maping register

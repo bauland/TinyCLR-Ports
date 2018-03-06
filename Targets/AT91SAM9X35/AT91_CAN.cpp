@@ -1046,7 +1046,6 @@ struct AT91_Can_Controller {
     sCandTransfer can_rx;
 
     AT91_Can_Filter canDataFilter;
-
 };
 
 static const AT91_Gpio_Pin g_AT91_Can_Tx_Pins[] = AT91_CAN_TX_PINS;
@@ -1189,7 +1188,7 @@ const TinyCLR_Api_Info* AT91_Can_GetApi() {
         canProvider[i]->Index = i;
         canProvider[i]->Acquire = &AT91_Can_Acquire;
         canProvider[i]->Release = &AT91_Can_Release;
-        canProvider[i]->Reset = &AT91_Can_Reset;
+        canProvider[i]->Reset = &AT91_Can_SoftReset;
         canProvider[i]->WriteMessage = &AT91_Can_WriteMessage;
         canProvider[i]->ReadMessage = &AT91_Can_ReadMessage;
         canProvider[i]->SetBitTiming = &AT91_Can_SetBitTiming;
@@ -1385,6 +1384,8 @@ void CAN_ErrorHandler(sCand *pCand, uint32_t dwErrS, int32_t channel) {
 ******************************************************************************/
 
 void AT91_Can_RxInterruptHandler(void *param) {
+    DISABLE_INTERRUPTS_SCOPED(irq);
+
     int32_t channel = (int32_t)param;
 
     sCand *pCand = &canController[channel].cand;
@@ -1501,7 +1502,7 @@ TinyCLR_Result AT91_Can_Release(const TinyCLR_Can_Provider* self) {
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_Can_Reset(const TinyCLR_Can_Provider* self) {
+TinyCLR_Result AT91_Can_SoftReset(const TinyCLR_Can_Provider* self) {
     int32_t channel = self->Index;
     volatile int32_t i;
 
@@ -1560,10 +1561,9 @@ TinyCLR_Result AT91_Can_WriteMessage(const TinyCLR_Can_Provider* self, uint32_t 
 
     uint32_t timeout = CAN_TRANSFER_TIMEOUT;
 
-    while (readyToSend == false && timeout > 0) {
+    while (readyToSend == false && timeout-- > 0) {
         AT91_Can_IsWritingAllowed(self, readyToSend);
         AT91_Time_Delay(nullptr, 1);
-        timeout--;
     }
 
     if (timeout == 0)
@@ -1840,7 +1840,7 @@ TinyCLR_Result AT91_Can_GetSourceClock(const TinyCLR_Can_Provider* self, uint32_
 TinyCLR_Result AT91_Can_GetReadBufferSize(const TinyCLR_Can_Provider* self, size_t& size) {
     int32_t channel = self->Index;
 
-    size = canController[channel].can_rxBufferSize;
+    size = canController[channel].can_rxBufferSize == 0 ? g_AT91_Can_defaultBuffersSize[channel] : canController[channel].can_rxBufferSize;
 
     return TinyCLR_Result::Success;
 }
@@ -1859,9 +1859,7 @@ TinyCLR_Result AT91_Can_SetReadBufferSize(const TinyCLR_Can_Provider* self, size
 }
 
 TinyCLR_Result AT91_Can_GetWriteBufferSize(const TinyCLR_Can_Provider* self, size_t& size) {
-    int32_t channel = self->Index;
-
-    size = canController[channel].can_txBufferSize;
+    size = 1;
 
     return TinyCLR_Result::Success;
 }
@@ -1874,4 +1872,8 @@ TinyCLR_Result AT91_Can_SetWriteBufferSize(const TinyCLR_Can_Provider* self, siz
     return size == 1 ? TinyCLR_Result::Success : TinyCLR_Result::NotSupported;
 }
 
+void AT91_Can_Reset() {
+    for (int i = 0; i < TOTAL_CAN_CONTROLLERS; i++)
+        AT91_Can_Release(canProvider[i]);
+}
 #endif // INCLUDE_CAN
