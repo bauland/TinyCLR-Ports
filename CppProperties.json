@@ -8,12 +8,7 @@
       "includePath": [
         "${workspaceRoot}/CMSIS/CMSIS/Include",
         "${workspaceRoot}/Core",
-        "C:/Program Files (x86)/Microsoft Visual Studio/2017/Professional/Linux/gcc_arm/arm-none-eabi/include/c++/6.3.1",
-        "C:/Program Files (x86)/Microsoft Visual Studio/2017/Professional/Linux/gcc_arm/arm-none-eabi/include/c++/6.3.1/arm-none-eabi/thumb/v7e-m/fpv4-sp/hard",
-        "C:/Program Files (x86)/Microsoft Visual Studio/2017/Professional/Linux/gcc_arm/arm-none-eabi/include/c++/6.3.1/backward",
-        "C:/Program Files (x86)/Microsoft Visual Studio/2017/Professional/Linux/gcc_arm/lib/gcc/arm-none-eabi/6.3.1/include",
-        "C:/Program Files (x86)/Microsoft Visual Studio/2017/Professional/Linux/gcc_arm/lib/gcc/arm-none-eabi/6.3.1/include-fixed",
-        "C:/Program Files (x86)/Microsoft Visual Studio/2017/Professional/Linux/gcc_arm/arm-none-eabi/include"
+        "C:\\Program Files (x86)\\GNU Tools ARM Embedded\\7 2017-q4-major\\arm-none-eabi\\include"
       ]
     }
   ]

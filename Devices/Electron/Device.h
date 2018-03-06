@@ -21,7 +21,7 @@
 #define DEVICE_TARGET STM32F4
 #define DEVICE_NAME "Electron"
 #define DEVICE_MANUFACTURER "IngenuityMicro"
-#define DEVICE_VERSION ((0ULL << 48) | (8ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (9ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x0110
@@ -30,11 +30,11 @@
 #define USB_DEBUGGER_INDEX 0
 
 #define DEBUGGER_SELECTOR_PIN PIN(B, 10)
-#define DEBUGGER_SELECTOR_PULL TinyCLR_Gpio_PinDriveMode::Input
+#define DEBUGGER_SELECTOR_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define DEBUGGER_SELECTOR_USB_STATE TinyCLR_Gpio_PinValue::High
 
 #define RUN_APP_PIN PIN(C, 13)
-#define RUN_APP_PULL TinyCLR_Gpio_PinDriveMode::Input
+#define RUN_APP_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define RUN_APP_STATE TinyCLR_Gpio_PinValue::High
 
 
@@ -57,8 +57,6 @@
 #define INCLUDE_I2C 
 #define STM32F4_I2C_SCL_PINS { { PIN(B, 6), AF(4) } }
 #define STM32F4_I2C_SDA_PINS { { PIN(B, 7), AF(4) } }
-
-
 
 #define INCLUDE_PWM 
 #define STM32F4_PWM_PINS {/*          0                       1                     2                      3                      */\
@@ -83,6 +81,7 @@
 
 #define INCLUDE_USBCLIENT
 #define STM32F4_USB_QUEUE_SIZE 16
+#define STM32F4_USB_FIFO_BUFFER_SIZE 32
 #define STM32F4_USB_DM_PINS { { PIN(A, 11), AF(10) } }
 #define STM32F4_USB_DP_PINS { { PIN(A, 12), AF(10) } }
 #define STM32F4_USB_VB_PINS { { PIN(A,  9), AF(10) } }
