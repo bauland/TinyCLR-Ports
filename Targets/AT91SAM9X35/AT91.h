@@ -873,15 +873,14 @@ TinyCLR_Result AT91_Uart_SetWriteBufferSize(const TinyCLR_Uart_Provider* self, s
 
 //Deployment
 const TinyCLR_Api_Info* AT91_Deployment_GetApi();
-TinyCLR_Result AT91_Flash_Acquire(const TinyCLR_Deployment_Provider* self, bool &supportXIP);
-TinyCLR_Result AT91_Flash_Release(const TinyCLR_Deployment_Provider* self);
-TinyCLR_Result AT91_Flash_Read(const TinyCLR_Deployment_Provider* self, uint32_t address, size_t length, uint8_t* buffer);
-TinyCLR_Result AT91_Flash_Write(const TinyCLR_Deployment_Provider* self, uint32_t address, size_t length, const uint8_t* buffer);
-TinyCLR_Result AT91_Flash_EraseBlock(const TinyCLR_Deployment_Provider* self, uint32_t sector);
-TinyCLR_Result AT91_Flash_IsBlockErased(const TinyCLR_Deployment_Provider* self, uint32_t sector, bool &erased);
-TinyCLR_Result AT91_Flash_GetBytesPerSector(const TinyCLR_Deployment_Provider* self, uint32_t address, int32_t& size);
-TinyCLR_Result AT91_Flash_GetSectorMap(const TinyCLR_Deployment_Provider* self, const uint32_t*& addresses, const uint32_t*& sizes, size_t& count);
-TinyCLR_Result AT91_Flash_Reset(const TinyCLR_Deployment_Provider* self);
+TinyCLR_Result AT91_Deployment_Acquire(const TinyCLR_Deployment_Provider* self, bool &supportXIP);
+TinyCLR_Result AT91_Deployment_Release(const TinyCLR_Deployment_Provider* self);
+TinyCLR_Result AT91_Deployment_Read(const TinyCLR_Deployment_Provider* self, uint32_t address, size_t length, uint8_t* buffer);
+TinyCLR_Result AT91_Deployment_Write(const TinyCLR_Deployment_Provider* self, uint32_t address, size_t length, const uint8_t* buffer);
+TinyCLR_Result AT91_Deployment_EraseBlock(const TinyCLR_Deployment_Provider* self, uint32_t sector);
+TinyCLR_Result AT91_Deployment_IsBlockErased(const TinyCLR_Deployment_Provider* self, uint32_t sector, bool &erased);
+TinyCLR_Result AT91_Deployment_GetBytesPerSector(const TinyCLR_Deployment_Provider* self, uint32_t address, int32_t& size);
+TinyCLR_Result AT91_Deployment_GetSectorMap(const TinyCLR_Deployment_Provider* self, const uint32_t*& addresses, const uint32_t*& sizes, size_t& count);
 
 // Interrupt
 //////////////////////////////////////////////////////////////////////////////
@@ -1276,7 +1275,6 @@ struct AT91_TC {
 const TinyCLR_Api_Info* AT91_Time_GetApi();
 TinyCLR_Result AT91_Time_Acquire(const TinyCLR_Time_Provider* self);
 TinyCLR_Result AT91_Time_Release(const TinyCLR_Time_Provider* self);
-TinyCLR_Result AT91_Time_GetInitialTime(const TinyCLR_Time_Provider* self, int64_t& utcTime, int32_t& timeZoneOffsetMinutes);
 uint64_t AT91_Time_GetTimeForProcessorTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
 uint64_t AT91_Time_TimeToTicks(const TinyCLR_Time_Provider* self, uint64_t time);
 uint64_t AT91_Time_MillisecondsToTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);

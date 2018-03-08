@@ -265,6 +265,15 @@ TinyCLR_Result LPC17_Uart_SetWriteBufferSize(const TinyCLR_Uart_Provider* self, 
 
 //Deployment
 const TinyCLR_Api_Info* LPC17_Deployment_GetApi();
+TinyCLR_Result LPC17_Deployment_Acquire(const TinyCLR_Deployment_Provider* self, bool& supportXIP);
+TinyCLR_Result LPC17_Deployment_Release(const TinyCLR_Deployment_Provider* self);
+TinyCLR_Result LPC17_Deployment_Read(const TinyCLR_Deployment_Provider* self, uint32_t address, size_t length, uint8_t* buffer);
+TinyCLR_Result LPC17_Deployment_Write(const TinyCLR_Deployment_Provider* self, uint32_t address, size_t length, const uint8_t* buffer);
+TinyCLR_Result LPC17_Deployment_EraseBlock(const TinyCLR_Deployment_Provider* self, uint32_t sector);
+TinyCLR_Result LPC17_Deployment_IsBlockErased(const TinyCLR_Deployment_Provider* self, uint32_t sector, bool& erased);
+TinyCLR_Result LPC17_Deployment_GetBytesPerSector(const TinyCLR_Deployment_Provider* self, uint32_t address, int32_t& size);
+TinyCLR_Result LPC17_Deployment_GetSectorMap(const TinyCLR_Deployment_Provider* self, const uint32_t*& addresses, const uint32_t*& sizes, size_t& count);
+
 // Interrupt
 class LPC17_SmartPtr_IRQ {
     uint32_t m_state;
@@ -328,7 +337,6 @@ void LPC17_I2c_StopTransaction(int32_t portId);
 const TinyCLR_Api_Info* LPC17_Time_GetApi();
 TinyCLR_Result LPC17_Time_Acquire(const TinyCLR_Time_Provider* self);
 TinyCLR_Result LPC17_Time_Release(const TinyCLR_Time_Provider* self);
-TinyCLR_Result LPC17_Time_GetInitialTime(const TinyCLR_Time_Provider* self, int64_t& utcTime, int32_t& timeZoneOffsetMinutes);
 uint64_t LPC17_Time_GetTimeForProcessorTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
 uint64_t LPC17_Time_GetProcessorTicksForTime(const TinyCLR_Time_Provider* self, uint64_t time);
 uint64_t LPC17_Time_MillisecondsToTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
