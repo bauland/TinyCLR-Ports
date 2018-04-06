@@ -135,6 +135,7 @@ struct LPC24_Gpio_PinConfiguration {
     LPC24_Gpio_Direction pinDirection;
     LPC24_Gpio_PinMode pinMode;
     LPC24_Gpio_PinFunction pinFunction;
+    bool outputDirection;
     bool apply;
 };
 
@@ -143,10 +144,11 @@ struct LPC24_Gpio_PinConfiguration {
 #define PF(num) (CONCAT(LPC24_Gpio_PinFunction::PinFunction, num))
 #define PF_NONE LPC24_Gpio_PinFunction::PinFunction0
 
-#define INIT(direction, pinMode, apply) { LPC24_Gpio_Direction::direction, LPC24_Gpio_PinMode::pinMode, LPC24_Gpio_PinFunction::PinFunction0, apply }
+#define INIT(direction, pinMode, pinFunction, outputDirection, apply) { LPC24_Gpio_Direction::direction, LPC24_Gpio_PinMode::pinMode, LPC24_Gpio_PinFunction::pinFunction, outputDirection, apply }
 #define ALTFUN(direction, pinMode, pinFunction) { LPC24_Gpio_Direction::direction, LPC24_Gpio_PinMode::pinMode, LPC24_Gpio_PinFunction::pinFunction, true }
 #define INPUT(pinMode) { LPC24_Gpio_Direction::Input, LPC24_Gpio_PinMode::pinMode, LPC24_Gpio_PinFunction::PinFunction0, true }
-#define DEFAULT() { LPC24_Gpio_Direction::Input, LPC24_Gpio_PinMode::Inactive, LPC24_Gpio_PinFunction::PinFunction0, false }
+#define DEFAULT() INIT(Input, Inactive, PinFunction0, false, true)
+#define NO_INIT() INIT(Input, Inactive, PinFunction0, false, false)
 
 void LPC24_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider);
 void LPC24_Startup_OnSoftResetDevice(const TinyCLR_Api_Provider* apiProvider);
@@ -266,6 +268,13 @@ double LPC24_Pwm_GetMinFrequency(const TinyCLR_Pwm_Provider* self);
 double LPC24_Pwm_GetMaxFrequency(const TinyCLR_Pwm_Provider* self);
 double LPC24_Pwm_GetActualFrequency(const TinyCLR_Pwm_Provider* self);
 int32_t LPC24_Pwm_GetPinCount(const TinyCLR_Pwm_Provider* self);
+
+//RTC
+const TinyCLR_Api_Info* LPC24_Rtc_GetApi();
+TinyCLR_Result LPC24_Rtc_Acquire(const TinyCLR_Rtc_Provider* self);
+TinyCLR_Result LPC24_Rtc_Release(const TinyCLR_Rtc_Provider* self);
+TinyCLR_Result LPC24_Rtc_GetNow(const TinyCLR_Rtc_Provider* self, TinyCLR_Rtc_DateTime& value);
+TinyCLR_Result LPC24_Rtc_SetNow(const TinyCLR_Rtc_Provider* self, TinyCLR_Rtc_DateTime value);
 
 //SPI
 const TinyCLR_Api_Info* LPC24_Spi_GetApi();
@@ -400,18 +409,18 @@ void LPC24_I2c_StopTransaction(int32_t portId);
 
 // Time
 const TinyCLR_Api_Info* LPC24_Time_GetApi();
-TinyCLR_Result LPC24_Time_Acquire(const TinyCLR_Time_Provider* self);
-TinyCLR_Result LPC24_Time_Release(const TinyCLR_Time_Provider* self);
-uint64_t LPC24_Time_GetTimeForProcessorTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
-uint64_t LPC24_Time_TimeToTicks(const TinyCLR_Time_Provider* self, uint64_t time);
-uint64_t LPC24_Time_MillisecondsToTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
-uint64_t LPC24_Time_MicrosecondsToTicks(const TinyCLR_Time_Provider* self, uint64_t microseconds);
-uint64_t LPC24_Time_GetCurrentTicks(const TinyCLR_Time_Provider* self);
-TinyCLR_Result LPC24_Time_SetCompare(const TinyCLR_Time_Provider* self, uint64_t processorTicks);
-TinyCLR_Result LPC24_Time_SetCompareCallback(const TinyCLR_Time_Provider* self, TinyCLR_Time_TickCallback callback);
-void LPC24_Time_DelayNoInterrupt(const TinyCLR_Time_Provider* self, uint64_t microseconds);
-void LPC24_Time_Delay(const TinyCLR_Time_Provider* self, uint64_t microseconds);
-void LPC24_Time_GetDriftParameters(const TinyCLR_Time_Provider* self, int32_t* a, int32_t* b, int64_t* c);
+TinyCLR_Result LPC24_Time_Acquire(const TinyCLR_NativeTime_Provider* self);
+TinyCLR_Result LPC24_Time_Release(const TinyCLR_NativeTime_Provider* self);
+uint64_t LPC24_Time_GetTimeForProcessorTicks(const TinyCLR_NativeTime_Provider* self, uint64_t ticks);
+uint64_t LPC24_Time_TimeToTicks(const TinyCLR_NativeTime_Provider* self, uint64_t time);
+uint64_t LPC24_Time_MillisecondsToTicks(const TinyCLR_NativeTime_Provider* self, uint64_t ticks);
+uint64_t LPC24_Time_MicrosecondsToTicks(const TinyCLR_NativeTime_Provider* self, uint64_t microseconds);
+uint64_t LPC24_Time_GetCurrentProcessorTicks(const TinyCLR_NativeTime_Provider* self);
+TinyCLR_Result LPC24_Time_SetNextTickCallbackTime(const TinyCLR_NativeTime_Provider* self, uint64_t processorTicks);
+TinyCLR_Result LPC24_Time_SetTickCallback(const TinyCLR_NativeTime_Provider* self, TinyCLR_NativeTime_Callback callback);
+void LPC24_Time_Delay(const TinyCLR_NativeTime_Provider* self, uint64_t microseconds);
+void LPC24_Time_Delay(const TinyCLR_NativeTime_Provider* self, uint64_t microseconds);
+void LPC24_Time_GetDriftParameters(const TinyCLR_NativeTime_Provider* self, int32_t* a, int32_t* b, int64_t* c);
 
 // Power
 const TinyCLR_Api_Info* LPC24_Power_GetApi();

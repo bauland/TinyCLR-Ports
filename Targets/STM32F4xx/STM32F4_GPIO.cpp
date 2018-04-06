@@ -16,9 +16,9 @@
 
 #include "STM32F4.h"
 
-static const STM32F4_Gpio_PinConfiguration pins[] = STM32F4_GPIO_PINS;
+static const STM32F4_Gpio_PinConfiguration g_stm32f4_pins[] = STM32F4_GPIO_PINS;
 
-static const int STM32F4_Gpio_MaxPins = SIZEOF_ARRAY(pins);
+static const int STM32F4_Gpio_MaxPins = SIZEOF_ARRAY(g_stm32f4_pins);
 
 #define STM32F4_Gpio_DebounceDefaultMilisecond     20
 #define STM32F4_Gpio_MaxInt                     16
@@ -303,26 +303,18 @@ void STM32F4_GpioInternal_WritePin(int32_t pin, bool value) {
 }
 
 TinyCLR_Result STM32F4_Gpio_Read(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinValue& value) {
-    if (pin >= STM32F4_Gpio_MaxPins || pin == PIN_NONE)
-        return TinyCLR_Result::ArgumentOutOfRange;
-
     value = STM32F4_GpioInternal_ReadPin(pin) ? TinyCLR_Gpio_PinValue::High : TinyCLR_Gpio_PinValue::Low;
 
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F4_Gpio_Write(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinValue value) {
-    if (pin >= STM32F4_Gpio_MaxPins || pin == PIN_NONE)
-        return TinyCLR_Result::ArgumentOutOfRange;
-
     STM32F4_GpioInternal_WritePin(pin, value == TinyCLR_Gpio_PinValue::High ? true : false);
 
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F4_Gpio_AcquirePin(const TinyCLR_Gpio_Provider* self, int32_t pin) {
-    DISABLE_INTERRUPTS_SCOPED(irq);
-
     if (pin >= STM32F4_Gpio_MaxPins || pin == PIN_NONE)
         return TinyCLR_Result::ArgumentOutOfRange;
 
@@ -337,16 +329,7 @@ TinyCLR_Result STM32F4_Gpio_AcquirePin(const TinyCLR_Gpio_Provider* self, int32_
 }
 
 TinyCLR_Result STM32F4_Gpio_ReleasePin(const TinyCLR_Gpio_Provider* self, int32_t pin) {
-
-    DISABLE_INTERRUPTS_SCOPED(irq);
-
-    if (pin >= STM32F4_Gpio_MaxPins || pin == PIN_NONE)
-        return TinyCLR_Result::ArgumentOutOfRange;
-
-    STM32F4_GpioInternal_ClosePin(pin);
-
-    return TinyCLR_Result::Success;
-
+    return STM32F4_GpioInternal_ClosePin(pin) == true ? TinyCLR_Result::Success : TinyCLR_Result::NotAvailable;
 }
 
 bool STM32F4_Gpio_IsDriveModeSupported(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinDriveMode mode) {
@@ -358,9 +341,6 @@ TinyCLR_Gpio_PinDriveMode STM32F4_Gpio_GetDriveMode(const TinyCLR_Gpio_Provider*
 }
 
 TinyCLR_Result STM32F4_Gpio_SetDriveMode(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinDriveMode driveMode) {
-    if (pin >= STM32F4_Gpio_MaxPins || pin == PIN_NONE)
-        return TinyCLR_Result::ArgumentOutOfRange;
-
     switch (driveMode) {
     case TinyCLR_Gpio_PinDriveMode::Output:
     case TinyCLR_Gpio_PinDriveMode::Input:
@@ -380,8 +360,6 @@ TinyCLR_Result STM32F4_Gpio_SetDriveMode(const TinyCLR_Gpio_Provider* self, int3
         STM32F4_GpioInternal_ConfigurePin(pin, STM32F4_Gpio_PortMode::GeneralPurposeOutput, STM32F4_Gpio_OutputType::PushPull, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::PullUp, STM32F4_Gpio_AlternateFunction::AF0);
         break;
 
-    case TinyCLR_Gpio_PinDriveMode::OutputOpenSource:
-    case TinyCLR_Gpio_PinDriveMode::OutputOpenSourcePullDown:
     default:
         return TinyCLR_Result::NotSupported;
     }
@@ -396,9 +374,6 @@ int32_t STM32F4_Gpio_GetDebounceTimeout(const TinyCLR_Gpio_Provider* self, int32
 }
 
 TinyCLR_Result STM32F4_Gpio_SetDebounceTimeout(const TinyCLR_Gpio_Provider* self, int32_t pin, int32_t debounceTime) {
-    if (pin >= STM32F4_Gpio_MaxPins || pin == PIN_NONE)
-        return TinyCLR_Result::ArgumentOutOfRange;
-
     if (debounceTime > 0 && debounceTime < 10000) {
         g_debounceTicksPin[pin] = (uint32_t)STM32F4_Time_GetProcessorTicksForTime(nullptr, (uint64_t)debounceTime * 1000 * 10);
         return TinyCLR_Result::Success;
@@ -414,7 +389,7 @@ int32_t STM32F4_Gpio_GetPinCount(const TinyCLR_Gpio_Provider* self) {
 void STM32F4_Gpio_Reset() {
 
     for (int i = 0; i < STM32F4_Gpio_MaxPins; i++) {
-        auto& p = pins[i];
+        auto& p = g_stm32f4_pins[i];
 
         g_pinReserved[i] = 0;
         STM32F4_Gpio_SetDebounceTimeout(nullptr, i, STM32F4_Gpio_DebounceDefaultMilisecond);

@@ -52,7 +52,7 @@
 #define AT45DB321D_SPI_CLOCK_HZ 20000000
 
 const TinyCLR_Spi_Provider* g_AT45DB321D_Flash_SpiProvider;
-const TinyCLR_Time_Provider* g_AT45DB321D_Flash_TimeProvider;
+const TinyCLR_NativeTime_Provider* g_AT45DB321D_Flash_TimeProvider;
 
 uint32_t g_AT45DB321D_Flash_SpiChipSelectLine;
 
@@ -115,7 +115,7 @@ TinyCLR_Result AT45DB321D_Flash_Read(uint32_t address, size_t length, uint8_t* b
             if (AT45DB321D_Flash_GetStatus() & 0x80)
                 break;
 
-            g_AT45DB321D_Flash_TimeProvider->Delay(g_AT45DB321D_Flash_TimeProvider, 1000);
+            g_AT45DB321D_Flash_TimeProvider->WaitMicroseconds(g_AT45DB321D_Flash_TimeProvider, 1000);
         }
 
         memcpy(&buffer[index], &g_AT45DB321D_Flash_DataReadBuffer[8], AT45DB321D_FLASH_PAGE_SIZE);
@@ -148,7 +148,7 @@ TinyCLR_Result AT45DB321D_Flash_Read(uint32_t address, size_t length, uint8_t* b
             if (AT45DB321D_Flash_GetStatus() & 0x80)
                 break;
 
-            g_AT45DB321D_Flash_TimeProvider->Delay(g_AT45DB321D_Flash_TimeProvider, 1000);
+            g_AT45DB321D_Flash_TimeProvider->WaitMicroseconds(g_AT45DB321D_Flash_TimeProvider, 1000);
         }
 
         memcpy(&buffer[index], &g_AT45DB321D_Flash_DataReadBuffer[8], rest);
@@ -195,7 +195,7 @@ bool AT45DB321D_Flash_WriteSector(uint32_t pageNumber, uint8_t* dataBuffer) {
         if (AT45DB321D_Flash_GetStatus() & 0x80)
             return true;
 
-        g_AT45DB321D_Flash_TimeProvider->Delay(g_AT45DB321D_Flash_TimeProvider, 1000);
+        g_AT45DB321D_Flash_TimeProvider->WaitMicroseconds(g_AT45DB321D_Flash_TimeProvider, 1000);
     }
 
     return false;
@@ -334,7 +334,7 @@ TinyCLR_Result AT45DB321D_Flash_EraseBlock(uint32_t sector) {
         if (AT45DB321D_Flash_GetStatus() & 0x80)
             return TinyCLR_Result::Success;
 
-        g_AT45DB321D_Flash_TimeProvider->Delay(g_AT45DB321D_Flash_TimeProvider, 1000);
+        g_AT45DB321D_Flash_TimeProvider->WaitMicroseconds(g_AT45DB321D_Flash_TimeProvider, 1000);
     }
 
     g_AT45DB321D_Flash_SpiProvider->Release(g_AT45DB321D_Flash_SpiProvider);
@@ -342,7 +342,7 @@ TinyCLR_Result AT45DB321D_Flash_EraseBlock(uint32_t sector) {
     return TinyCLR_Result::InvalidOperation;
 }
 
-TinyCLR_Result AT45DB321D_Flash_Acquire(const TinyCLR_Spi_Provider* spiProvider, const TinyCLR_Time_Provider* timeProvider, uint32_t chipSelectLine, bool& supportXIP) {
+TinyCLR_Result AT45DB321D_Flash_Acquire(const TinyCLR_Spi_Provider* spiProvider, const TinyCLR_NativeTime_Provider* timeProvider, uint32_t chipSelectLine, bool& supportXIP) {
 
     size_t writeLength;
     size_t readLength;
@@ -381,7 +381,7 @@ TinyCLR_Result AT45DB321D_Flash_Acquire(const TinyCLR_Spi_Provider* spiProvider,
         if (AT45DB321D_Flash_GetStatus() & 0x80)
             return TinyCLR_Result::Success;;
 
-        g_AT45DB321D_Flash_TimeProvider->Delay(g_AT45DB321D_Flash_TimeProvider, 1000);
+        g_AT45DB321D_Flash_TimeProvider->WaitMicroseconds(g_AT45DB321D_Flash_TimeProvider, 1000);
     }
 
     g_AT45DB321D_Flash_SpiProvider->Release(g_AT45DB321D_Flash_SpiProvider);

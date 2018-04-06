@@ -65,15 +65,14 @@ void STM32F4_Power_Sleep(const TinyCLR_Power_Provider* self, TinyCLR_Power_Sleep
 //Time
 ////////////////////////////////////////////////////////////////////////////////
 const TinyCLR_Api_Info* STM32F4_Time_GetApi();
-TinyCLR_Result STM32F4_Time_Acquire(const TinyCLR_Time_Provider* self);
-TinyCLR_Result STM32F4_Time_Release(const TinyCLR_Time_Provider* self);
-uint64_t STM32F4_Time_GetCurrentProcessorTicks(const TinyCLR_Time_Provider* self);
-uint64_t STM32F4_Time_GetTimeForProcessorTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
-uint64_t STM32F4_Time_GetProcessorTicksForTime(const TinyCLR_Time_Provider* self, uint64_t time);
-TinyCLR_Result STM32F4_Time_SetTickCallback(const TinyCLR_Time_Provider* self, TinyCLR_Time_TickCallback callback);
-TinyCLR_Result STM32F4_Time_SetNextTickCallbackTime(const TinyCLR_Time_Provider* self, uint64_t processorTicks);
-void STM32F4_Time_Delay(const TinyCLR_Time_Provider* self, uint64_t microseconds);
-void STM32F4_Time_DelayNoInterrupt(const TinyCLR_Time_Provider* self, uint64_t microseconds);
+TinyCLR_Result STM32F4_Time_Acquire(const TinyCLR_NativeTime_Provider* self);
+TinyCLR_Result STM32F4_Time_Release(const TinyCLR_NativeTime_Provider* self);
+uint64_t STM32F4_Time_GetCurrentProcessorTicks(const TinyCLR_NativeTime_Provider* self);
+uint64_t STM32F4_Time_GetTimeForProcessorTicks(const TinyCLR_NativeTime_Provider* self, uint64_t ticks);
+uint64_t STM32F4_Time_GetProcessorTicksForTime(const TinyCLR_NativeTime_Provider* self, uint64_t time);
+TinyCLR_Result STM32F4_Time_SetTickCallback(const TinyCLR_NativeTime_Provider* self, TinyCLR_NativeTime_Callback callback);
+TinyCLR_Result STM32F4_Time_SetNextTickCallbackTime(const TinyCLR_NativeTime_Provider* self, uint64_t processorTicks);
+void STM32F4_Time_Delay(const TinyCLR_NativeTime_Provider* self, uint64_t microseconds);
 
 ////////////////////////////////////////////////////////////////////////////////
 //Startup
@@ -190,6 +189,15 @@ double STM32F4_Pwm_GetMaxFrequency(const TinyCLR_Pwm_Provider* self);
 double STM32F4_Pwm_GetActualFrequency(const TinyCLR_Pwm_Provider* self);
 int32_t STM32F4_Pwm_GetPinCount(const TinyCLR_Pwm_Provider* self);
 void STM32F4_Pwm_Reset();
+
+////////////////////////////////////////////////////////////////////////////////
+//RTC
+////////////////////////////////////////////////////////////////////////////////
+const TinyCLR_Api_Info* STM32F4_Rtc_GetApi();
+TinyCLR_Result STM32F4_Rtc_Acquire(const TinyCLR_Rtc_Provider* self);
+TinyCLR_Result STM32F4_Rtc_Release(const TinyCLR_Rtc_Provider* self);
+TinyCLR_Result STM32F4_Rtc_GetNow(const TinyCLR_Rtc_Provider* self, TinyCLR_Rtc_DateTime& value);
+TinyCLR_Result STM32F4_Rtc_SetNow(const TinyCLR_Rtc_Provider* self, TinyCLR_Rtc_DateTime value);
 
 ////////////////////////////////////////////////////////////////////////////////
 //SPI
@@ -354,7 +362,8 @@ struct STM32F4_Gpio_PinConfiguration {
 #define ANALOG() INIT(Analog, PushPull, VeryHigh, false, None, AF0, true)
 #define OUTPUT(outputType, outputSpeed, outputDirection, pullDirection) INIT(GeneralPurposeOutput, outputType, outputSpeed, outputDirection, pullDirection, AF0, true)
 #define INPUT(pullDirection) INIT(Input, PushPull, VeryHigh, false, pullDirection, AF0, true)
-#define DEFAULT() INIT(Input, PushPull, VeryHigh, false, PullDown, AF0, false)
+#define DEFAULT() INIT(Input, PushPull, VeryHigh, false, PullDown, AF0, true)
+#define NO_INIT() INIT(Input, PushPull, VeryHigh, false, PullDown, AF0, false)
 
 bool STM32F4_GpioInternal_OpenPin(int32_t pin);
 bool STM32F4_GpioInternal_ClosePin(int32_t pin);

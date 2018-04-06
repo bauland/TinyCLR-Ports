@@ -92,7 +92,7 @@ void AT91_Startup_OnSoftResetDevice(const TinyCLR_Api_Provider* apiProvider);
 #define AT91C_BASE_RTTC         0xFFFFFD20 // (RTTC) Base Address
 #define AT91C_BASE_PITC         0xFFFFFD30 // (PITC) Base Address
 #define AT91C_BASE_WDTC         0xFFFFFD40 // (WDTC) Base Address
-#define AT91C_BASE_SCKCR         0xFFFFFD50 // (SCKCR) Base Address
+#define AT91C_BASE_SCKCR        0xFFFFFD50 // (SCKCR) Base Address
 #define AT91C_BASE_GPBR         0xFFFFFD60 // (GPBR) Base Address
 #define AT91C_BASE_RTCC         0xFFFFFE00 // (RTCC) Base Address
 
@@ -449,6 +449,7 @@ struct AT91_Gpio_PinConfiguration {
     AT91_Gpio_Schmitt schmitt;
     AT91_Gpio_DriveSpeed speed;
     AT91_Gpio_PeripheralSelection peripheralSelection;
+    bool outputDirection;
     bool apply;
 };
 
@@ -457,10 +458,11 @@ struct AT91_Gpio_PinConfiguration {
 #define PS(num) (CONCAT(AT91_Gpio_PeripheralSelection::Peripheral, num))
 #define PS_NONE AT91_Gpio_PeripheralSelection::None
 
-#define INIT(pinDirection, resistorMode, peripheralSelection, apply) { AT91_Gpio_Direction::pinDirection, AT91_Gpio_ResistorMode::resistorMode, AT91_Gpio_MultiDriver::Disable, AT91_Gpio_Filter::Disable, AT91_Gpio_FilterSlowClock::Disable, AT91_Gpio_Schmitt::Disable,  AT91_Gpio_DriveSpeed::High, AT91_Gpio_PeripheralSelection::peripheralSelection, apply }
+#define INIT(pinDirection, resistorMode, peripheralSelection, outputDirection, apply) { AT91_Gpio_Direction::pinDirection, AT91_Gpio_ResistorMode::resistorMode, AT91_Gpio_MultiDriver::Disable, AT91_Gpio_Filter::Disable, AT91_Gpio_FilterSlowClock::Disable, AT91_Gpio_Schmitt::Disable,  AT91_Gpio_DriveSpeed::High, AT91_Gpio_PeripheralSelection::peripheralSelection, outputDirection, apply }
 #define ALTFUN(direction, resistorMode, peripheralSelection) { AT91_Gpio_Direction::direction, AT91_Gpio_ResistorMode::resistorMode, AT91_Gpio_MultiDriver::Disable, AT91_Gpio_Filter::Disable, AT91_Gpio_FilterSlowClock::Disable, AT91_Gpio_Schmitt::Disable,  AT91_Gpio_DriveSpeed::High, AT91_Gpio_PeripheralSelection::peripheralSelection, true }
 #define INPUT(resistorMode) { AT91_Gpio_Direction::Input, AT91_Gpio_ResistorMode::resistorMode, AT91_Gpio_MultiDriver::Disable, AT91_Gpio_Filter::Disable, AT91_Gpio_FilterSlowClock::Disable, AT91_Gpio_Schmitt::Disable, AT91_Gpio_DriveSpeed::High, AT91_Gpio_PeripheralSelection::None, true }
-#define DEFAULT() { AT91_Gpio_Direction::Input, AT91_Gpio_ResistorMode::Inactive, AT91_Gpio_MultiDriver::Disable, AT91_Gpio_Filter::Disable, AT91_Gpio_FilterSlowClock::Disable, AT91_Gpio_Schmitt::Disable, AT91_Gpio_DriveSpeed::High, AT91_Gpio_PeripheralSelection::None, false }
+#define DEFAULT() INIT(Input, Inactive, None, false, true)
+#define NO_INIT() INIT(Input, Inactive, None, false, false)
 
 void AT91_Gpio_Reset();
 const TinyCLR_Api_Info* AT91_Gpio_GetApi();
@@ -552,6 +554,13 @@ double AT91_Pwm_GetMaxFrequency(const TinyCLR_Pwm_Provider* self);
 double AT91_Pwm_GetActualFrequency(const TinyCLR_Pwm_Provider* self);
 int32_t AT91_Pwm_GetPinCount(const TinyCLR_Pwm_Provider* self);
 
+//RTC
+const TinyCLR_Api_Info* AT91_Rtc_GetApi();
+TinyCLR_Result AT91_Rtc_Acquire(const TinyCLR_Rtc_Provider* self);
+TinyCLR_Result AT91_Rtc_Release(const TinyCLR_Rtc_Provider* self);
+TinyCLR_Result AT91_Rtc_GetNow(const TinyCLR_Rtc_Provider* self, TinyCLR_Rtc_DateTime& value);
+TinyCLR_Result AT91_Rtc_SetNow(const TinyCLR_Rtc_Provider* self, TinyCLR_Rtc_DateTime value);
+
 //SPI
 //////////////////////////////////////////////////////////////////////////////
 // AT91_SPI
@@ -617,8 +626,12 @@ struct AT91_SPI {
         uint32_t mckKHz = AT91_SYSTEM_PERIPHERAL_CLOCK_HZ / 1000;
         uint32_t divisor = mckKHz / clockKHz;
 
-        if (mckKHz / divisor > clockKHz)
+        while ((divisor > 0) && ((mckKHz / divisor) > clockKHz)) {
             divisor++;
+
+            if (divisor > 0xFF)
+                break;
+        }
 
         if (divisor > 0xFF)
             divisor = 0xFF;
@@ -1249,18 +1262,18 @@ struct AT91_TC {
 //
 // AT91 Timer Channel
 const TinyCLR_Api_Info* AT91_Time_GetApi();
-TinyCLR_Result AT91_Time_Acquire(const TinyCLR_Time_Provider* self);
-TinyCLR_Result AT91_Time_Release(const TinyCLR_Time_Provider* self);
-uint64_t AT91_Time_GetTimeForProcessorTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
-uint64_t AT91_Time_TimeToTicks(const TinyCLR_Time_Provider* self, uint64_t time);
-uint64_t AT91_Time_MillisecondsToTicks(const TinyCLR_Time_Provider* self, uint64_t ticks);
-uint64_t AT91_Time_MicrosecondsToTicks(const TinyCLR_Time_Provider* self, uint64_t microseconds);
-uint64_t AT91_Time_GetCurrentTicks(const TinyCLR_Time_Provider* self);
-TinyCLR_Result AT91_Time_SetCompare(const TinyCLR_Time_Provider* self, uint64_t processorTicks);
-TinyCLR_Result AT91_Time_SetCompareCallback(const TinyCLR_Time_Provider* self, TinyCLR_Time_TickCallback callback);
-void AT91_Time_DelayNoInterrupt(const TinyCLR_Time_Provider* self, uint64_t microseconds);
-void AT91_Time_Delay(const TinyCLR_Time_Provider* self, uint64_t microseconds);
-void AT91_Time_GetDriftParameters(const TinyCLR_Time_Provider* self, int32_t* a, int32_t* b, int64_t* c);
+TinyCLR_Result AT91_Time_Acquire(const TinyCLR_NativeTime_Provider* self);
+TinyCLR_Result AT91_Time_Release(const TinyCLR_NativeTime_Provider* self);
+uint64_t AT91_Time_GetTimeForProcessorTicks(const TinyCLR_NativeTime_Provider* self, uint64_t ticks);
+uint64_t AT91_Time_TimeToTicks(const TinyCLR_NativeTime_Provider* self, uint64_t time);
+uint64_t AT91_Time_MillisecondsToTicks(const TinyCLR_NativeTime_Provider* self, uint64_t ticks);
+uint64_t AT91_Time_MicrosecondsToTicks(const TinyCLR_NativeTime_Provider* self, uint64_t microseconds);
+uint64_t AT91_Time_GetCurrentProcessorTicks(const TinyCLR_NativeTime_Provider* self);
+TinyCLR_Result AT91_Time_SetNextTickCallbackTime(const TinyCLR_NativeTime_Provider* self, uint64_t processorTicks);
+TinyCLR_Result AT91_Time_SetTickCallback(const TinyCLR_NativeTime_Provider* self, TinyCLR_NativeTime_Callback callback);
+void AT91_Time_Delay(const TinyCLR_NativeTime_Provider* self, uint64_t microseconds);
+void AT91_Time_Delay(const TinyCLR_NativeTime_Provider* self, uint64_t microseconds);
+void AT91_Time_GetDriftParameters(const TinyCLR_NativeTime_Provider* self, int32_t* a, int32_t* b, int64_t* c);
 
 // Power
 const TinyCLR_Api_Info* AT91_Power_GetApi();

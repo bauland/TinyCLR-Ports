@@ -92,9 +92,9 @@
 
 // Driver
 #define LPC24_Gpio_DebounceDefaultMilisecond   20
-#define LPC24_Gpio_MaxPins                     SIZEOF_ARRAY(g_lpc24_gpio_pinConfiguration)
+#define LPC24_Gpio_MaxPins                     SIZEOF_ARRAY(g_lpc24_pins)
 
-static const LPC24_Gpio_PinConfiguration g_lpc24_gpio_pinConfiguration[] = LPC24_GPIO_PINS;
+static const LPC24_Gpio_PinConfiguration g_lpc24_pins[] = LPC24_GPIO_PINS;
 struct LPC24_Int_State {
     uint8_t                                     pin;      // pin number
     uint32_t                                    debounce; // debounce
@@ -172,8 +172,8 @@ void LPC24_Gpio_InterruptHandler(void* param) {
             CLEAR_PIN_INTERRUPT(port, pin); // Clear this pin's IRQ
 
             if (state->debounce) {
-                if ((LPC24_Time_GetCurrentTicks(nullptr) - state->lastDebounceTicks) >= g_debounceTicksPin[state->pin]) {
-                    state->lastDebounceTicks = LPC24_Time_GetCurrentTicks(nullptr);
+                if ((LPC24_Time_GetCurrentProcessorTicks(nullptr) - state->lastDebounceTicks) >= g_debounceTicksPin[state->pin]) {
+                    state->lastDebounceTicks = LPC24_Time_GetCurrentProcessorTicks(nullptr);
                 }
                 else {
                     executeIsr = false;
@@ -207,7 +207,7 @@ TinyCLR_Result LPC24_Gpio_SetValueChangedHandler(const TinyCLR_Gpio_Provider* se
         state->pin = (uint8_t)pin;
         state->debounce = LPC24_Gpio_GetDebounceTimeout(self, pin);
         state->ISR = ISR;
-        state->lastDebounceTicks = LPC24_Time_GetCurrentTicks(nullptr);
+        state->lastDebounceTicks = LPC24_Time_GetCurrentProcessorTicks(nullptr);
 
         SET_PIN_INTERRUPT_RISING_EDGE(GET_PORT(pin), GET_PIN(pin));
         SET_PIN_INTERRUPT_FALLING_EDGE(GET_PORT(pin), GET_PIN(pin));
@@ -463,7 +463,16 @@ void LPC24_Gpio_Reset() {
     SCS_BASE |= (1 << 0); // Enable for port 0 and 1
 
     for (auto pin = 0; pin < LPC24_Gpio_GetPinCount(&gpioProvider); pin++) {
+        auto& p = g_lpc24_pins[pin];
+
         g_pinReserved[pin] = false;
         LPC24_Gpio_SetDebounceTimeout(&gpioProvider, pin, LPC24_Gpio_DebounceDefaultMilisecond);
+
+        if (p.apply) {
+            LPC24_Gpio_ConfigurePin(pin, p.pinDirection, p.pinFunction, p.pinMode);
+
+            if (p.pinDirection == LPC24_Gpio_Direction::Output)
+                LPC24_Gpio_WritePin(pin, p.outputDirection);
+        }
     }
 }

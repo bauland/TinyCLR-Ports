@@ -112,8 +112,8 @@ void AT91_Gpio_InterruptHandler(void* param) {
             AT91_Int_State* state = &g_int_state[bitIndex + port * 32];;
 
             if (state->debounce) {
-                if ((AT91_Time_GetCurrentTicks(nullptr) - state->lastDebounceTicks) >= g_debounceTicksPin[state->pin]) {
-                    state->lastDebounceTicks = AT91_Time_GetCurrentTicks(nullptr);
+                if ((AT91_Time_GetCurrentProcessorTicks(nullptr) - state->lastDebounceTicks) >= g_debounceTicksPin[state->pin]) {
+                    state->lastDebounceTicks = AT91_Time_GetCurrentProcessorTicks(nullptr);
                 }
                 else {
                     executeIsr = false;
@@ -149,7 +149,7 @@ TinyCLR_Result AT91_Gpio_SetValueChangedHandler(const TinyCLR_Gpio_Provider* sel
         state->pin = (uint8_t)pin;
         state->debounce = AT91_Gpio_GetDebounceTimeout(self, pin);
         state->ISR = ISR;
-        state->lastDebounceTicks = AT91_Time_GetCurrentTicks(nullptr);
+        state->lastDebounceTicks = AT91_Time_GetCurrentProcessorTicks(nullptr);
 
         pioX.PIO_IER = bitmask; // Enable interrupt
     }
@@ -230,7 +230,7 @@ bool AT91_Gpio_ConfigurePin(int32_t pin, AT91_Gpio_Direction pinDir, AT91_Gpio_P
         switch (pinDir) {
         case AT91_Gpio_Direction::Output:
 
-            pioX.PIO_PPUDR = bitmask;	// Disable the pull up resistor
+            pioX.PIO_PUDR = bitmask;	// Disable the pull up resistor
             PIO_PPDDR(port) = bitmask;	// Disable the pull-down resistor
 
             pioX.PIO_OER = bitmask; // Enable Output
@@ -241,33 +241,32 @@ bool AT91_Gpio_ConfigurePin(int32_t pin, AT91_Gpio_Direction pinDir, AT91_Gpio_P
             pioX.PIO_ODR = bitmask; // Disable Output
 
             if (filter == AT91_Gpio_Filter::Enable) {
-                // TODO
+                pioX.PIO_IFER = bitmask;
             }
             else {
-                // TODO
+                pioX.PIO_IFDR = bitmask;
             }
 
             if (filterSlowClock == AT91_Gpio_FilterSlowClock::Enable) {
-                // TO DO
+                pioX.PIO_IFSCER = bitmask;
             }
             else {
-                // TO DO
+                pioX.PIO_IFSCDR = bitmask;
             }
-
 
             switch (resistorMode) {
             case AT91_Gpio_ResistorMode::Inactive:
-                pioX.PIO_PPUDR = bitmask;	// Disable the pull up resistor
+                pioX.PIO_PUDR = bitmask;	// Disable the pull up resistor
                 PIO_PPDDR(port) = bitmask;	// Disable the pull-down resistor
                 break;
 
             case AT91_Gpio_ResistorMode::PullUp:
                 PIO_PPDDR(port) = bitmask;	// Disable the pull-down resistor first.
-                pioX.PIO_PPUER = bitmask;	// Enable the pull up resistor
+                pioX.PIO_PUER = bitmask;	// Enable the pull up resistor
                 break;
 
             case AT91_Gpio_ResistorMode::PullDown:
-                pioX.PIO_PPUDR = bitmask;	// Disable the pull up resistor first.
+                pioX.PIO_PUDR = bitmask;	// Disable the pull up resistor first.
                 PIO_PPDER(port) = bitmask;	// Enables the pull-down resistor
                 break;
             }
@@ -276,33 +275,33 @@ bool AT91_Gpio_ConfigurePin(int32_t pin, AT91_Gpio_Direction pinDir, AT91_Gpio_P
     }
     else {
         if (resistorMode == AT91_Gpio_ResistorMode::Inactive)
-            pioX.PIO_PPUDR = bitmask;         // Disable the pull up resistor
+            pioX.PIO_PUDR = bitmask;         // Disable the pull up resistor
         else if (resistorMode == AT91_Gpio_ResistorMode::PullUp)
-            pioX.PIO_PPUER = bitmask;            // Enable the pull up resistor
+            pioX.PIO_PUER = bitmask;            // Enable the pull up resistor
 
         switch (peripheralSelection) {
         case AT91_Gpio_PeripheralSelection::PeripheralA:
             pioX.PIO_PDR = bitmask;
-            pioX.PIO_ASR &= ~bitmask; // Writes a zero to bit that is masked
-            pioX.PIO_BSR &= ~bitmask; // Writes a zero to bit that is masked
+            pioX.PIO_ABCDSR[0] &= ~bitmask; // Writes a zero to bit that is masked
+            pioX.PIO_ABCDSR[1] &= ~bitmask; // Writes a zero to bit that is masked
             break;
 
         case AT91_Gpio_PeripheralSelection::PeripheralB:
             pioX.PIO_PDR = bitmask;
-            pioX.PIO_ASR |= bitmask;
-            pioX.PIO_BSR &= ~bitmask;
+            pioX.PIO_ABCDSR[0] |= bitmask;
+            pioX.PIO_ABCDSR[1] &= ~bitmask;
             break;
 
         case AT91_Gpio_PeripheralSelection::PeripheralC:
             pioX.PIO_PDR = bitmask;
-            pioX.PIO_ASR &= ~bitmask;
-            pioX.PIO_BSR |= bitmask;
+            pioX.PIO_ABCDSR[0] &= ~bitmask;
+            pioX.PIO_ABCDSR[1] |= bitmask;
             break;
 
         case AT91_Gpio_PeripheralSelection::PeripheralD:
             pioX.PIO_PDR = bitmask;
-            pioX.PIO_ASR |= bitmask;
-            pioX.PIO_BSR |= bitmask;
+            pioX.PIO_ABCDSR[0] |= bitmask;
+            pioX.PIO_ABCDSR[1] |= bitmask;
             break;
         }
 
@@ -465,8 +464,17 @@ void AT91_Gpio_Reset() {
     }
 
     for (auto pin = 0; pin < AT91_Gpio_GetPinCount(&gpioProvider); pin++) {
+        auto& p = g_at91_pins[pin];
+
         g_pinReserved[pin] = false;
         AT91_Gpio_SetDebounceTimeout(&gpioProvider, pin, AT91_Gpio_DebounceDefaultMilisecond);
+
+        if (p.apply) {
+            AT91_Gpio_ConfigurePin(pin, p.direction, p.peripheralSelection, p.resistorMode);
+
+            if (p.direction == AT91_Gpio_Direction::Output)
+                AT91_Gpio_WritePin(pin, p.outputDirection);
+        }
     }
 
     AT91_Interrupt_Activate(AT91C_ID_PIOA_PIOB, (uint32_t*)&AT91_Gpio_InterruptHandler, nullptr);

@@ -112,8 +112,8 @@ void AT91_Gpio_InterruptHandler(void* param) {
             AT91_Int_State* state = &g_int_state[bitIndex + port * 32];;
 
             if (state->debounce) {
-                if ((AT91_Time_GetCurrentTicks(nullptr) - state->lastDebounceTicks) >= g_debounceTicksPin[state->pin]) {
-                    state->lastDebounceTicks = AT91_Time_GetCurrentTicks(nullptr);
+                if ((AT91_Time_GetCurrentProcessorTicks(nullptr) - state->lastDebounceTicks) >= g_debounceTicksPin[state->pin]) {
+                    state->lastDebounceTicks = AT91_Time_GetCurrentProcessorTicks(nullptr);
                 }
                 else {
                     executeIsr = false;
@@ -149,7 +149,7 @@ TinyCLR_Result AT91_Gpio_SetValueChangedHandler(const TinyCLR_Gpio_Provider* sel
         state->pin = (uint8_t)pin;
         state->debounce = AT91_Gpio_GetDebounceTimeout(self, pin);
         state->ISR = ISR;
-        state->lastDebounceTicks = AT91_Time_GetCurrentTicks(nullptr);
+        state->lastDebounceTicks = AT91_Time_GetCurrentProcessorTicks(nullptr);
 
         pioX.PIO_IER = bitmask; // Enable interrupt
     }
@@ -241,18 +241,12 @@ bool AT91_Gpio_ConfigurePin(int32_t pin, AT91_Gpio_Direction pinDir, AT91_Gpio_P
             pioX.PIO_ODR = bitmask; // Disable Output
 
             if (filter == AT91_Gpio_Filter::Enable) {
-                // TODO
+                pioX.PIO_IFER = bitmask;
             }
             else {
-                // TODO
+                pioX.PIO_IFDR = bitmask;
             }
 
-            if (filterSlowClock == AT91_Gpio_FilterSlowClock::Enable) {
-                // TO DO
-            }
-            else {
-                // TO DO
-            }
 
 
             switch (resistorMode) {
@@ -455,8 +449,17 @@ void AT91_Gpio_Reset() {
     }
 
     for (auto pin = 0; pin < AT91_Gpio_GetPinCount(&gpioProvider); pin++) {
+        auto& p = g_at91_pins[pin];
+
         g_pinReserved[pin] = false;
         AT91_Gpio_SetDebounceTimeout(&gpioProvider, pin, AT91_Gpio_DebounceDefaultMilisecond);
+
+        if (p.apply) {
+            AT91_Gpio_ConfigurePin(pin, p.direction, p.peripheralSelection, p.resistorMode);
+
+            if (p.direction == AT91_Gpio_Direction::Output)
+                AT91_Gpio_WritePin(pin, p.outputDirection);
+        }
     }
 
     AT91_Interrupt_Activate(AT91C_ID_PIOA, (uint32_t*)&AT91_Gpio_InterruptHandler, nullptr);

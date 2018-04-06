@@ -26,6 +26,8 @@
 static TinyCLR_Dac_Provider dacProvider;
 static TinyCLR_Api_Info dacApi;
 
+bool g_STM32F4_DA_IsOpened[STM32F4_DAC_CHANNELS];
+
 const TinyCLR_Api_Info* STM32F4_Dac_GetApi() {
     dacProvider.Parent = &dacApi;
     dacProvider.Index = 0;
@@ -80,15 +82,12 @@ TinyCLR_Result STM32F4_Dac_AcquireChannel(const TinyCLR_Dac_Provider* self, int3
         DAC->CR |= DAC_CR_EN1; // enable channel 1
     }
 
+    g_STM32F4_DA_IsOpened[channel] = true;
+
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F4_Dac_ReleaseChannel(const TinyCLR_Dac_Provider* self, int32_t channel) {
-    TinyCLR_Result releasePin = STM32F4_Gpio_ReleasePin(nullptr, STM32F4_DAC_FIRST_PIN + channel);
-
-    if (releasePin != TinyCLR_Result::Success)
-        return releasePin;
-
     if (channel) {
         DAC->CR &= ~DAC_CR_EN2; // disable channel 2
     }
@@ -96,13 +95,15 @@ TinyCLR_Result STM32F4_Dac_ReleaseChannel(const TinyCLR_Dac_Provider* self, int3
         DAC->CR &= ~DAC_CR_EN1; // disable channel 1
     }
 
-    // free pin
-    STM32F4_GpioInternal_ClosePin(STM32F4_DAC_FIRST_PIN + channel);
-
     if ((DAC->CR & (DAC_CR_EN1 | DAC_CR_EN2)) == 0) { // all channels off
         // disable DA clock
         RCC->APB1ENR &= ~RCC_APB1ENR_DACEN;
     }
+
+    if (g_STM32F4_DA_IsOpened[channel])
+        STM32F4_GpioInternal_ClosePin(STM32F4_DAC_FIRST_PIN + channel);
+
+    g_STM32F4_DA_IsOpened[channel] = false;
 
     return TinyCLR_Result::Success;
 }
@@ -137,6 +138,8 @@ int32_t STM32F4_Dac_GetMaxValue(const TinyCLR_Dac_Provider* self) {
 void STM32F4_Dac_Reset() {
     for (auto i = 0; i < STM32F4_Dac_GetChannelCount(&dacProvider); i++) {
         STM32F4_Dac_ReleaseChannel(&dacProvider, i);
+
+        g_STM32F4_DA_IsOpened[i] = false;
     }
 }
 #endif
