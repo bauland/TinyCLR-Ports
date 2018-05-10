@@ -3,7 +3,7 @@
 // Copyright GHI Electronics, LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 // You may obtain a copy of the License at
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
@@ -51,6 +51,7 @@ struct UartController {
     USART_TypeDef_Ptr                   portPtr;
 
     bool                                isOpened;
+    bool                                handshaking;
 
     TinyCLR_Uart_ErrorReceivedHandler   errorEventHandler;
     TinyCLR_Uart_DataReceivedHandler    dataReceivedEventHandler;
@@ -90,19 +91,23 @@ const TinyCLR_Api_Info* STM32F4_Uart_GetApi() {
         uartProviders[i]->SetPinChangedHandler = &STM32F4_Uart_SetPinChangedHandler;
         uartProviders[i]->SetErrorReceivedHandler = &STM32F4_Uart_SetErrorReceivedHandler;
         uartProviders[i]->SetDataReceivedHandler = &STM32F4_Uart_SetDataReceivedHandler;
-        uartProviders[i]->GetBreakSignalState = STM32F4_Uart_GetBreakSignalState;
-        uartProviders[i]->SetBreakSignalState = STM32F4_Uart_SetBreakSignalState;
-        uartProviders[i]->GetCarrierDetectState = STM32F4_Uart_GetCarrierDetectState;
-        uartProviders[i]->GetClearToSendState = STM32F4_Uart_GetClearToSendState;
-        uartProviders[i]->GetDataReadyState = STM32F4_Uart_GetDataReadyState;
-        uartProviders[i]->GetIsDataTerminalReadyEnabled = STM32F4_Uart_GetIsDataTerminalReadyEnabled;
-        uartProviders[i]->SetIsDataTerminalReadyEnabled = STM32F4_Uart_SetIsDataTerminalReadyEnabled;
-        uartProviders[i]->GetIsRequestToSendEnabled = STM32F4_Uart_GetIsRequestToSendEnabled;
-        uartProviders[i]->SetIsRequestToSendEnabled = STM32F4_Uart_SetIsRequestToSendEnabled;
-        uartProviders[i]->GetReadBufferSize = STM32F4_Uart_GetReadBufferSize;
-        uartProviders[i]->SetReadBufferSize = STM32F4_Uart_SetReadBufferSize;
-        uartProviders[i]->GetWriteBufferSize = STM32F4_Uart_GetWriteBufferSize;
-        uartProviders[i]->SetWriteBufferSize = STM32F4_Uart_SetWriteBufferSize;
+        uartProviders[i]->GetBreakSignalState = &STM32F4_Uart_GetBreakSignalState;
+        uartProviders[i]->SetBreakSignalState = &STM32F4_Uart_SetBreakSignalState;
+        uartProviders[i]->GetCarrierDetectState = &STM32F4_Uart_GetCarrierDetectState;
+        uartProviders[i]->GetClearToSendState = &STM32F4_Uart_GetClearToSendState;
+        uartProviders[i]->GetDataReadyState = &STM32F4_Uart_GetDataReadyState;
+        uartProviders[i]->GetIsDataTerminalReadyEnabled = &STM32F4_Uart_GetIsDataTerminalReadyEnabled;
+        uartProviders[i]->SetIsDataTerminalReadyEnabled = &STM32F4_Uart_SetIsDataTerminalReadyEnabled;
+        uartProviders[i]->GetIsRequestToSendEnabled = &STM32F4_Uart_GetIsRequestToSendEnabled;
+        uartProviders[i]->SetIsRequestToSendEnabled = &STM32F4_Uart_SetIsRequestToSendEnabled;
+        uartProviders[i]->GetReadBufferSize = &STM32F4_Uart_GetReadBufferSize;
+        uartProviders[i]->SetReadBufferSize = &STM32F4_Uart_SetReadBufferSize;
+        uartProviders[i]->GetWriteBufferSize = &STM32F4_Uart_GetWriteBufferSize;
+        uartProviders[i]->SetWriteBufferSize = &STM32F4_Uart_SetWriteBufferSize;
+        uartProviders[i]->GetUnreadCount = &STM32F4_Uart_GetUnreadCount;
+        uartProviders[i]->GetUnwrittenCount = &STM32F4_Uart_GetUnwrittenCount;
+        uartProviders[i]->ClearReadBuffer = &STM32F4_Uart_ClearReadBuffer;
+        uartProviders[i]->ClearWriteBuffer = &STM32F4_Uart_ClearWriteBuffer;
     }
 
     uartApi.Author = "GHI Electronics, LLC";
@@ -190,7 +195,7 @@ TinyCLR_Result STM32F4_Uart_SetWriteBufferSize(const TinyCLR_Uart_Provider* self
     return TinyCLR_Result::Success;
 }
 
-void STM32F4_Uart_IrqRx(int portNum) {
+void STM32F4_Uart_IrqRx(int portNum, uint16_t sr) {
     DISABLE_INTERRUPTS_SCOPED(irq);
 
     uint8_t data = (uint8_t)(g_UartController[portNum].portPtr->DR); // read RX data
@@ -211,6 +216,17 @@ void STM32F4_Uart_IrqRx(int portNum) {
 
     if (g_UartController[portNum].dataReceivedEventHandler != nullptr)
         g_UartController[portNum].dataReceivedEventHandler(g_UartController[portNum].provider, 1);
+
+    if (g_UartController[portNum].errorEventHandler != nullptr) {
+        if (sr & USART_SR_ORE)
+            g_UartController[portNum].errorEventHandler(g_UartController[portNum].provider, TinyCLR_Uart_Error::BufferOverrun);
+
+        if (sr & USART_SR_FE)
+            g_UartController[portNum].errorEventHandler(g_UartController[portNum].provider, TinyCLR_Uart_Error::Frame);
+
+        if (sr & USART_SR_PE)
+            g_UartController[portNum].errorEventHandler(g_UartController[portNum].provider, TinyCLR_Uart_Error::ReceiveParity);
+    }
 }
 
 void STM32F4_Uart_IrqTx(int portNum) {
@@ -234,12 +250,12 @@ void STM32F4_Uart_IrqTx(int portNum) {
     }
 }
 
-void STM32F4_Uart_InterruptHandler(int8_t uartIndex, uint16_t sr) {
-    if (sr & (USART_SR_RXNE | USART_SR_ORE))
-        STM32F4_Uart_IrqRx(uartIndex);
+void STM32F4_Uart_InterruptHandler(int8_t portNum, uint16_t sr) {
+    if (sr & USART_SR_RXNE)
+        STM32F4_Uart_IrqRx(portNum, sr);
 
     if (sr & USART_SR_TXE)
-        STM32F4_Uart_IrqTx(uartIndex);
+        STM32F4_Uart_IrqTx(portNum);
 }
 
 void STM32F4_Uart_Interrupt0(void* param) {
@@ -309,6 +325,9 @@ TinyCLR_Result STM32F4_Uart_Acquire(const TinyCLR_Uart_Provider* self) {
 
     DISABLE_INTERRUPTS_SCOPED(irq);
 
+    if (g_UartController[portNum].isOpened || !STM32F4_GpioInternal_OpenPin(g_STM32F4_Uart_Rx_Pins[portNum].number) || !STM32F4_GpioInternal_OpenPin(g_STM32F4_Uart_Tx_Pins[portNum].number))
+        return TinyCLR_Result::SharingViolation;
+
     g_UartController[portNum].txBufferCount = 0;
     g_UartController[portNum].txBufferIn = 0;
     g_UartController[portNum].txBufferOut = 0;
@@ -320,10 +339,9 @@ TinyCLR_Result STM32F4_Uart_Acquire(const TinyCLR_Uart_Provider* self) {
     g_UartController[portNum].portPtr = g_STM32F4_Uart_Ports[portNum];
     g_UartController[portNum].provider = self;
 
-    if (STM32F4_GpioInternal_OpenPin(g_STM32F4_Uart_Rx_Pins[portNum].number) && STM32F4_GpioInternal_OpenPin(g_STM32F4_Uart_Tx_Pins[portNum].number))
-        return TinyCLR_Result::Success;
+    g_UartController[portNum].handshaking = false;
 
-    return TinyCLR_Result::SharingViolation;
+    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F4_Uart_SetActiveSettings(const TinyCLR_Uart_Provider* self, uint32_t baudRate, uint32_t dataBits, TinyCLR_Uart_Parity parity, TinyCLR_Uart_StopBitCount stopBits, TinyCLR_Uart_Handshake handshaking) {
@@ -414,6 +432,8 @@ TinyCLR_Result STM32F4_Uart_SetActiveSettings(const TinyCLR_Uart_Provider* self,
     switch (handshaking) {
     case TinyCLR_Uart_Handshake::RequestToSend:
         ctrl_cr3 = USART_CR3_CTSE | USART_CR3_RTSE;
+
+        g_UartController[portNum].handshaking = true;
         break;
 
     case TinyCLR_Uart_Handshake::XOnXOff:
@@ -607,8 +627,11 @@ TinyCLR_Result STM32F4_Uart_Release(const TinyCLR_Uart_Provider* self) {
     if (g_UartController[portNum].isOpened) {
         STM32F4_GpioInternal_ClosePin(g_STM32F4_Uart_Rx_Pins[portNum].number);
         STM32F4_GpioInternal_ClosePin(g_STM32F4_Uart_Tx_Pins[portNum].number);
-        STM32F4_GpioInternal_ClosePin(g_STM32F4_Uart_Cts_Pins[portNum].number);
-        STM32F4_GpioInternal_ClosePin(g_STM32F4_Uart_Rts_Pins[portNum].number);
+
+        if (g_UartController[portNum].handshaking) {
+            STM32F4_GpioInternal_ClosePin(g_STM32F4_Uart_Cts_Pins[portNum].number);
+            STM32F4_GpioInternal_ClosePin(g_STM32F4_Uart_Rts_Pins[portNum].number);
+        }
     }
 
     g_UartController[portNum].isOpened = false;
@@ -789,3 +812,28 @@ TinyCLR_Result STM32F4_Uart_GetIsRequestToSendEnabled(const TinyCLR_Uart_Provide
 TinyCLR_Result STM32F4_Uart_SetIsRequestToSendEnabled(const TinyCLR_Uart_Provider* self, bool state) {
     return TinyCLR_Result::NotImplemented;
 }
+
+TinyCLR_Result STM32F4_Uart_GetUnreadCount(const TinyCLR_Uart_Provider* self, size_t& count) {
+    count = g_UartController[self->Index].rxBufferCount;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result STM32F4_Uart_GetUnwrittenCount(const TinyCLR_Uart_Provider* self, size_t& count) {
+    count = g_UartController[self->Index].txBufferCount;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result STM32F4_Uart_ClearReadBuffer(const TinyCLR_Uart_Provider* self) {
+    g_UartController[self->Index].rxBufferCount = g_UartController[self->Index].rxBufferIn = g_UartController[self->Index].rxBufferOut = 0;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result STM32F4_Uart_ClearWriteBuffer(const TinyCLR_Uart_Provider* self) {
+    g_UartController[self->Index].txBufferCount = g_UartController[self->Index].txBufferIn = g_UartController[self->Index].txBufferOut = 0;
+
+    return TinyCLR_Result::Success;
+}
+

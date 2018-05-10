@@ -78,8 +78,16 @@ TinyCLR_Gpio_PinValue LPC17_Startup_GetDebuggerSelectorUsbState() {
         return G120E_DEBUGGER_SELECTOR_USB_STATE;
 }
 
+const TinyCLR_Startup_UsbDebuggerConfiguration LPC17_Startup_UsbDebuggerConfiguration = {
+    USB_DEBUGGER_VENDOR_ID,
+    USB_DEBUGGER_PRODUCT_ID,
+    CONCAT(L,DEVICE_MANUFACTURER),
+    CONCAT(L,DEVICE_NAME),
+    0
+};
 
-void LPC17_Startup_GetDebuggerTransportProvider(const TinyCLR_Api_Info*& api, size_t& index) {
+void LPC17_Startup_GetDebuggerTransportProvider(const TinyCLR_Api_Info*& api, size_t& index, const void*& configuration) {
+#if defined(DEBUGGER_SELECTOR_PIN)
     TinyCLR_Gpio_PinValue value, valueUsbActive;
     auto controller = static_cast<const TinyCLR_Gpio_Provider*>(LPC17_Gpio_GetApi()->Implementation);
 
@@ -93,14 +101,22 @@ void LPC17_Startup_GetDebuggerTransportProvider(const TinyCLR_Api_Info*& api, si
     if (value == valueUsbActive) {
         api = LPC17_UsbClient_GetApi();
         index = USB_DEBUGGER_INDEX;
+        configuration = (const void*)&LPC17_Startup_UsbDebuggerConfiguration;
     }
     else {
         api = LPC17_Uart_GetApi();
         index = UART_DEBUGGER_INDEX;
     }
+#elif defined(DEBUGGER_FORCE_API) && defined(DEBUGGER_FORCE_INDEX)
+    api = DEBUGGER_FORCE_API;
+    index = DEBUGGER_FORCE_INDEX;
+#else
+#error You must specify a debugger mode pin or specify the API explicitly.
+#endif
 }
 
 void LPC17_Startup_GetRunApp(bool& runApp) {
+#if defined(RUN_APP_PIN)
     TinyCLR_Gpio_PinValue value;
     auto controller = static_cast<const TinyCLR_Gpio_Provider*>(LPC17_Gpio_GetApi()->Implementation);
     controller->AcquirePin(controller, RUN_APP_PIN);
@@ -109,6 +125,11 @@ void LPC17_Startup_GetRunApp(bool& runApp) {
     controller->ReleasePin(controller, RUN_APP_PIN);
 
     runApp = value == RUN_APP_STATE;
+#elif defined(RUN_APP_FORCE_STATE)
+    runApp = RUN_APP_FORCE_STATE;
+#else
+    runApp = true;
+#endif
 }
 
 // PWM

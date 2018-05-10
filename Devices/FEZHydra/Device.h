@@ -17,7 +17,7 @@
 #define DEVICE_TARGET AT91
 #define DEVICE_NAME "FEZHydra"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (10ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (11ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5005
@@ -42,7 +42,7 @@
 
 #define INCLUDE_GPIO
 #define AT91_GPIO_PINS  {/*      0          1          2          3          4          5          6          7          8          9          10         11         12         13         14         15         16         17         18         19         20         21         22         23         24         25         26         27         28         29         30         31      */\
-                         /*PAx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), NO_INIT(), NO_INIT(), DEFAULT(), DEFAULT(), NO_INIT(), NO_INIT(), NO_INIT(), NO_INIT(), DEFAULT(), DEFAULT(), DEFAULT(),\
+                         /*PAx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), NO_INIT(), NO_INIT(), NO_INIT(), NO_INIT(), DEFAULT(), DEFAULT(), DEFAULT(),\
                          /*PBx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(),\
                          /*PCx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(),\
                          /*PDx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(),\
@@ -85,13 +85,16 @@
 #define AT91_UART_CTS_PINS { { PIN_NONE , PS_NONE }, { PIN(A, 10), PS(A) }, { PIN_NONE , PS_NONE }, { PIN_NONE , PS_NONE } }
 
 #define INCLUDE_USBCLIENT
-#define TOTAL_USB_CONTROLLER 1
-#define AT91_USB_QUEUE_SIZE 16
-#define AT91_USB_FIFO_BUFFER_SIZE 64
+#define AT91_TOTAL_USB_CONTROLLERS 1
+#define AT91_USB_PACKET_FIFO_COUNT 64
+#define AT91_USB_ENDPOINT_SIZE 64
+#define AT91_USB_ENDPOINT0_SIZE 64
+#define AT91_USB_ENDPOINT_COUNT 16
+#define AT91_USB_PIPE_COUNT 16
 
 #define INCLUDE_DISPLAY
-#define AT91_DISPLAY_CONTROL_PINS { { PIN(C,1), PS(A) }, { PIN(C,3), PS(A) }, { PIN(C,4), PS(A) }, { PIN(C,5), PS(A) }, { PIN(C,6), PS(A) }, { PIN(C,7), PS(A) } }
-#define AT91_DISPLAY_DATA_PINS { { PIN(C,9), PS(B) }, { PIN(C,10), PS(B) }, { PIN(C,11), PS(B) }, { PIN(C,12), PS(B) }, { PIN(C,13), PS(B) }, { PIN(C,15), PS(B) }, { PIN(C,16), PS(B) }, { PIN(C,17), PS(B) }, { PIN(C,18), PS(B) }, { PIN(C,19), PS(B) }, { PIN(C,20), PS(B) }, { PIN(C,21), PS(B) }, { PIN(C,22), PS(B) }, { PIN(C,23), PS(B) }, { PIN(C,24), PS(B) }, { PIN(C,25), PS(B) } }
+#define AT91_DISPLAY_CONTROL_PINS { { PIN(C,1), PS(A) }, { PIN(C,3), PS(A) }, { PIN(C,4), PS(A) }, { PIN(C,5), PS(A) }, { PIN(C,6), PS(A) }, { PIN(C,9), PS(B) }, { PIN(C,10), PS(B) }, { PIN(C,11), PS(B) }, { PIN(C,12), PS(B) }, { PIN(C,13), PS(B) }, { PIN(C,15), PS(B) }, { PIN(C,16), PS(B) }, { PIN(C,17), PS(B) }, { PIN(C,18), PS(B) }, { PIN(C,19), PS(B) }, { PIN(C,20), PS(B) }, { PIN(C,21), PS(B) }, { PIN(C,22), PS(B) }, { PIN(C,23), PS(B) }, { PIN(C,24), PS(B) }, { PIN(C,25), PS(B) }  }
 #define AT91_DISPLAY_ENABLE_PIN { PIN(C, 7), PS(A) }
+#define AT91_DISPLAY_BACKLIGHT_PIN { PIN_NONE, PS_NONE }
 
 #include <AT91.h>

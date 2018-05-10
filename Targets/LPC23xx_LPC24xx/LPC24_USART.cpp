@@ -74,19 +74,23 @@ const TinyCLR_Api_Info* LPC24_Uart_GetApi() {
         uartProviders[i]->SetPinChangedHandler = &LPC24_Uart_SetPinChangedHandler;
         uartProviders[i]->SetErrorReceivedHandler = &LPC24_Uart_SetErrorReceivedHandler;
         uartProviders[i]->SetDataReceivedHandler = &LPC24_Uart_SetDataReceivedHandler;
-        uartProviders[i]->GetBreakSignalState = LPC24_Uart_GetBreakSignalState;
-        uartProviders[i]->SetBreakSignalState = LPC24_Uart_SetBreakSignalState;
-        uartProviders[i]->GetCarrierDetectState = LPC24_Uart_GetCarrierDetectState;
-        uartProviders[i]->GetClearToSendState = LPC24_Uart_GetClearToSendState;
-        uartProviders[i]->GetDataReadyState = LPC24_Uart_GetDataReadyState;
-        uartProviders[i]->GetIsDataTerminalReadyEnabled = LPC24_Uart_GetIsDataTerminalReadyEnabled;
-        uartProviders[i]->SetIsDataTerminalReadyEnabled = LPC24_Uart_SetIsDataTerminalReadyEnabled;
-        uartProviders[i]->GetIsRequestToSendEnabled = LPC24_Uart_GetIsRequestToSendEnabled;
-        uartProviders[i]->SetIsRequestToSendEnabled = LPC24_Uart_SetIsRequestToSendEnabled;
-        uartProviders[i]->GetReadBufferSize = LPC24_Uart_GetReadBufferSize;
-        uartProviders[i]->SetReadBufferSize = LPC24_Uart_SetReadBufferSize;
-        uartProviders[i]->GetWriteBufferSize = LPC24_Uart_GetWriteBufferSize;
-        uartProviders[i]->SetWriteBufferSize = LPC24_Uart_SetWriteBufferSize;
+        uartProviders[i]->GetBreakSignalState = &LPC24_Uart_GetBreakSignalState;
+        uartProviders[i]->SetBreakSignalState = &LPC24_Uart_SetBreakSignalState;
+        uartProviders[i]->GetCarrierDetectState = &LPC24_Uart_GetCarrierDetectState;
+        uartProviders[i]->GetClearToSendState = &LPC24_Uart_GetClearToSendState;
+        uartProviders[i]->GetDataReadyState = &LPC24_Uart_GetDataReadyState;
+        uartProviders[i]->GetIsDataTerminalReadyEnabled = &LPC24_Uart_GetIsDataTerminalReadyEnabled;
+        uartProviders[i]->SetIsDataTerminalReadyEnabled = &LPC24_Uart_SetIsDataTerminalReadyEnabled;
+        uartProviders[i]->GetIsRequestToSendEnabled = &LPC24_Uart_GetIsRequestToSendEnabled;
+        uartProviders[i]->SetIsRequestToSendEnabled = &LPC24_Uart_SetIsRequestToSendEnabled;
+        uartProviders[i]->GetReadBufferSize = &LPC24_Uart_GetReadBufferSize;
+        uartProviders[i]->SetReadBufferSize = &LPC24_Uart_SetReadBufferSize;
+        uartProviders[i]->GetWriteBufferSize = &LPC24_Uart_GetWriteBufferSize;
+        uartProviders[i]->SetWriteBufferSize = &LPC24_Uart_SetWriteBufferSize;
+        uartProviders[i]->GetUnreadCount = &LPC24_Uart_GetUnreadCount;
+        uartProviders[i]->GetUnwrittenCount = &LPC24_Uart_GetUnwrittenCount;
+        uartProviders[i]->ClearReadBuffer = &LPC24_Uart_ClearReadBuffer;
+        uartProviders[i]->ClearWriteBuffer = &LPC24_Uart_ClearWriteBuffer;
     }
 
     uartApi.Author = "GHI Electronics, LLC";
@@ -321,6 +325,12 @@ TinyCLR_Result LPC24_Uart_Acquire(const TinyCLR_Uart_Provider* self) {
 
     DISABLE_INTERRUPTS_SCOPED(irq);
 
+    int32_t txPin = LPC24_Uart_GetTxPin(portNum);
+    int32_t rxPin = LPC24_Uart_GetRxPin(portNum);
+
+    if (g_UartController[portNum].isOpened || !LPC24_Gpio_OpenPin(txPin) || !LPC24_Gpio_OpenPin(rxPin))
+        return TinyCLR_Result::SharingViolation;
+
     g_UartController[portNum].txBufferCount = 0;
     g_UartController[portNum].txBufferIn = 0;
     g_UartController[portNum].txBufferOut = 0;
@@ -536,7 +546,6 @@ TinyCLR_Result LPC24_Uart_SetActiveSettings(const TinyCLR_Uart_Provider* self, u
 
     LPC24_Interrupt_Activate(LPC24XX_USART::getIntNo(portNum), (uint32_t*)&LPC24_Uart_InterruptHandler, (void*)self->Index);
     LPC24_Interrupt_Enable(LPC24XX_USART::getIntNo(portNum));
-
 
     LPC24_Uart_PinConfiguration(portNum, true);
 
@@ -784,6 +793,30 @@ TinyCLR_Result LPC24_Uart_GetIsRequestToSendEnabled(const TinyCLR_Uart_Provider*
 
 TinyCLR_Result LPC24_Uart_SetIsRequestToSendEnabled(const TinyCLR_Uart_Provider* self, bool state) {
     return TinyCLR_Result::NotImplemented;
+}
+
+TinyCLR_Result LPC24_Uart_GetUnreadCount(const TinyCLR_Uart_Provider* self, size_t& count) {
+    count = g_UartController[self->Index].rxBufferCount;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result LPC24_Uart_GetUnwrittenCount(const TinyCLR_Uart_Provider* self, size_t& count) {
+    count = g_UartController[self->Index].txBufferCount;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result LPC24_Uart_ClearReadBuffer(const TinyCLR_Uart_Provider* self) {
+    g_UartController[self->Index].rxBufferCount = g_UartController[self->Index].rxBufferIn = g_UartController[self->Index].rxBufferOut = 0;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result LPC24_Uart_ClearWriteBuffer(const TinyCLR_Uart_Provider* self) {
+    g_UartController[self->Index].txBufferCount = g_UartController[self->Index].txBufferIn = g_UartController[self->Index].txBufferOut = 0;
+
+    return TinyCLR_Result::Success;
 }
 
 void LPC24_Uart_Reset() {

@@ -80,6 +80,10 @@ const TinyCLR_Api_Info* AT91_Uart_GetApi() {
         uartProviders[i]->SetReadBufferSize = AT91_Uart_SetReadBufferSize;
         uartProviders[i]->GetWriteBufferSize = AT91_Uart_GetWriteBufferSize;
         uartProviders[i]->SetWriteBufferSize = AT91_Uart_SetWriteBufferSize;
+        uartProviders[i]->GetUnreadCount = &AT91_Uart_GetUnreadCount;
+        uartProviders[i]->GetUnwrittenCount = &AT91_Uart_GetUnwrittenCount;
+        uartProviders[i]->ClearReadBuffer = &AT91_Uart_ClearReadBuffer;
+        uartProviders[i]->ClearWriteBuffer = &AT91_Uart_ClearWriteBuffer;
     }
 
     uartApi.Author = "GHI Electronics, LLC";
@@ -238,10 +242,16 @@ void AT91_Uart_SetErrorEvent(int32_t portNum, TinyCLR_Uart_Error error) {
         g_UartController[portNum].errorEventHandler(g_UartController[portNum].provider, error);
 }
 
-void AT91_Uart_ReceiveData(int32_t portNum) {
+void AT91_Uart_ReceiveData(int32_t portNum, uint32_t sr) {
     AT91_USART &usart = AT91::USART(portNum);
 
     uint8_t rxdata = usart.US_RHR;
+
+    if (g_UartController[portNum].rxBufferCount == g_UartController[portNum].rxBufferSize) {
+        AT91_Uart_SetErrorEvent(portNum, TinyCLR_Uart_Error::ReceiveFull);
+
+        return;
+    }
 
     g_UartController[portNum].RxBuffer[g_UartController[portNum].rxBufferIn++] = rxdata;
 
@@ -252,6 +262,15 @@ void AT91_Uart_ReceiveData(int32_t portNum) {
 
     if (g_UartController[portNum].dataReceivedEventHandler != nullptr)
         g_UartController[portNum].dataReceivedEventHandler(g_UartController[portNum].provider, 1);
+
+    if (sr & AT91_USART::US_OVRE)
+        AT91_Uart_SetErrorEvent(portNum, TinyCLR_Uart_Error::BufferOverrun);
+
+    if (sr & AT91_USART::US_FRAME)
+        AT91_Uart_SetErrorEvent(portNum, TinyCLR_Uart_Error::Frame);
+
+    if (sr & AT91_USART::US_PARE)
+        AT91_Uart_SetErrorEvent(portNum, TinyCLR_Uart_Error::ReceiveParity);
 
 }
 
@@ -286,7 +305,7 @@ void AT91_Uart_InterruptHandler(void *param) {
     uint32_t status = usart.US_CSR;
 
     if (status & AT91_USART::US_RXRDY) {
-        AT91_Uart_ReceiveData(portNum);
+        AT91_Uart_ReceiveData(portNum, status);
     }
 
     if (status & AT91_USART::US_TXRDY) {
@@ -317,6 +336,12 @@ TinyCLR_Result AT91_Uart_Acquire(const TinyCLR_Uart_Provider* self) {
         return TinyCLR_Result::ArgumentInvalid;
 
     DISABLE_INTERRUPTS_SCOPED(irq);
+
+    int32_t txPin = AT91_Uart_GetTxPin(portNum);
+    int32_t rxPin = AT91_Uart_GetRxPin(portNum);
+
+    if (g_UartController[portNum].isOpened || !AT91_Gpio_OpenPin(txPin) || !AT91_Gpio_OpenPin(rxPin))
+        return TinyCLR_Result::SharingViolation;
 
     g_UartController[portNum].txBufferCount = 0;
     g_UartController[portNum].txBufferIn = 0;
@@ -685,6 +710,30 @@ TinyCLR_Result AT91_Uart_GetIsRequestToSendEnabled(const TinyCLR_Uart_Provider* 
 
 TinyCLR_Result AT91_Uart_SetIsRequestToSendEnabled(const TinyCLR_Uart_Provider* self, bool state) {
     return TinyCLR_Result::NotImplemented;
+}
+
+TinyCLR_Result AT91_Uart_GetUnreadCount(const TinyCLR_Uart_Provider* self, size_t& count) {
+    count = g_UartController[self->Index].rxBufferCount;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_Uart_GetUnwrittenCount(const TinyCLR_Uart_Provider* self, size_t& count) {
+    count = g_UartController[self->Index].txBufferCount;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_Uart_ClearReadBuffer(const TinyCLR_Uart_Provider* self) {
+    g_UartController[self->Index].rxBufferCount = g_UartController[self->Index].rxBufferIn = g_UartController[self->Index].rxBufferOut = 0;
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_Uart_ClearWriteBuffer(const TinyCLR_Uart_Provider* self) {
+    g_UartController[self->Index].txBufferCount = g_UartController[self->Index].txBufferIn = g_UartController[self->Index].txBufferOut = 0;
+
+    return TinyCLR_Result::Success;
 }
 
 void AT91_Uart_Reset() {

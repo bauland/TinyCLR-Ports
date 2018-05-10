@@ -21,7 +21,7 @@
 #define DEVICE_TARGET STM32F4
 #define DEVICE_NAME "FEZCLR"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (10ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (11ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x500B
@@ -53,7 +53,7 @@
 
 #define INCLUDE_GPIO
 #define STM32F4_GPIO_PINS {/*      0          1          2          3          4          5          6          7          8          9          10         11         12         13         14         15      */\
-                           /*PAx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), NO_INIT(), NO_INIT(), NO_INIT(), NO_INIT(), NO_INIT(), NO_INIT(), DEFAULT(),\
+                           /*PAx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(),\
                            /*PBx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(),\
                            /*PCx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(),\
                            /*PDx*/ DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT(), DEFAULT()\
@@ -71,6 +71,8 @@
                           /* TIM4  */ { { PIN(B,  6), AF(2)   }, { PIN(B,  7), AF(2)   }, { PIN(B,  8), AF(2)   }, { PIN(B,  9), AF(2)   } },\
                          }
 
+#define INCLUDE_RTC
+
 #define INCLUDE_SPI
 #define STM32F4_SPI_SCLK_PINS { { PIN(B, 3), AF(5) }, { PIN(B, 13), AF(5) } }
 #define STM32F4_SPI_MISO_PINS { { PIN(B, 4), AF(5) }, { PIN(B, 14), AF(5) } }
@@ -85,8 +87,13 @@
 #define STM32F4_UART_RTS_PINS { { PIN_NONE  , AF_NONE }, { PIN(A, 1), AF(7) } }
 
 #define INCLUDE_USBCLIENT
-#define STM32F4_USB_QUEUE_SIZE 16
-#define STM32F4_USB_FIFO_BUFFER_SIZE 16
+#define STM32F4_TOTAL_USB_CONTROLLERS 1
+#define STM32F4_USB_PACKET_FIFO_COUNT 16
+#define STM32F4_USB_ENDPOINT_SIZE 64
+#define STM32F4_USB_ENDPOINT0_SIZE 8
+#define STM32F4_USB_ENDPOINT_COUNT 4
+#define STM32F4_USB_PIPE_COUNT 4
+
 #define STM32F4_USB_DM_PINS { { PIN(A, 11), AF(10) } }
 #define STM32F4_USB_DP_PINS { { PIN(A, 12), AF(10) } }
 #define STM32F4_USB_VB_PINS { { PIN(A,  9), AF(10) } }

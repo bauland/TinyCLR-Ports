@@ -160,12 +160,12 @@ TinyCLR_Result LPC17_Gpio_Release(const TinyCLR_Gpio_Provider* self);
 TinyCLR_Result LPC17_Gpio_EnableAlternatePin(int32_t pin, TinyCLR_Gpio_PinDriveMode resistor, uint32_t alternate);
 TinyCLR_Result LPC17_Gpio_Read(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinValue& value);
 TinyCLR_Result LPC17_Gpio_Write(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinValue value);
-TinyCLR_Result LPC17_Gpio_SetDebounceTimeout(const TinyCLR_Gpio_Provider* self, int32_t pin, int32_t debounceTime);
+TinyCLR_Result LPC17_Gpio_SetDebounceTimeout(const TinyCLR_Gpio_Provider* self, int32_t pin, uint64_t debounceTicks);
 TinyCLR_Result LPC17_Gpio_SetDriveMode(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinDriveMode mode);
 TinyCLR_Result LPC17_Gpio_AcquirePin(const TinyCLR_Gpio_Provider* self, int32_t pin);
 bool LPC17_Gpio_IsDriveModeSupported(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_PinDriveMode mode);
 TinyCLR_Gpio_PinDriveMode LPC17_Gpio_GetDriveMode(const TinyCLR_Gpio_Provider* self, int32_t pin);
-int32_t LPC17_Gpio_GetDebounceTimeout(const TinyCLR_Gpio_Provider* self, int32_t pin);
+uint64_t LPC17_Gpio_GetDebounceTimeout(const TinyCLR_Gpio_Provider* self, int32_t pin);
 int32_t LPC17_Gpio_GetPinCount(const TinyCLR_Gpio_Provider* self);
 TinyCLR_Result LPC17_Gpio_SetValueChangedHandler(const TinyCLR_Gpio_Provider* self, int32_t pin, TinyCLR_Gpio_ValueChangedHandler ISR);
 TinyCLR_Result LPC17_Gpio_ReleasePin(const TinyCLR_Gpio_Provider* self, int32_t pin);
@@ -275,6 +275,10 @@ TinyCLR_Result LPC17_Uart_GetReadBufferSize(const TinyCLR_Uart_Provider* self, s
 TinyCLR_Result LPC17_Uart_SetReadBufferSize(const TinyCLR_Uart_Provider* self, size_t size);
 TinyCLR_Result LPC17_Uart_GetWriteBufferSize(const TinyCLR_Uart_Provider* self, size_t& size);
 TinyCLR_Result LPC17_Uart_SetWriteBufferSize(const TinyCLR_Uart_Provider* self, size_t size);
+TinyCLR_Result LPC17_Uart_GetUnreadCount(const TinyCLR_Uart_Provider* self, size_t& count);
+TinyCLR_Result LPC17_Uart_GetUnwrittenCount(const TinyCLR_Uart_Provider* self, size_t& count);
+TinyCLR_Result LPC17_Uart_ClearReadBuffer(const TinyCLR_Uart_Provider* self);
+TinyCLR_Result LPC17_Uart_ClearWriteBuffer(const TinyCLR_Uart_Provider* self);
 
 //Deployment
 const TinyCLR_Api_Info* LPC17_Deployment_GetApi();
@@ -298,7 +302,7 @@ public:
     LPC17_SmartPtr_IRQ();
     ~LPC17_SmartPtr_IRQ();
 
-    bool WasDisabled();
+    bool IsDisabled();
     void Acquire();
     void Release();
     void Probe();
@@ -369,20 +373,17 @@ TinyCLR_Result LPC17_Power_Release(const TinyCLR_Power_Provider* self);
 //UsbClient
 const TinyCLR_Api_Info* LPC17_UsbClient_GetApi();
 void LPC17_UsbClient_Reset();
-TinyCLR_Result LPC17_UsbClient_Acquire(const TinyCLR_UsbClient_Provider* self);
-TinyCLR_Result LPC17_UsbClient_Release(const TinyCLR_UsbClient_Provider* self);
-TinyCLR_Result LPC17_UsbClient_Open(const TinyCLR_UsbClient_Provider* self, int32_t & pipe, TinyCLR_UsbClient_PipeMode mode);
-TinyCLR_Result LPC17_UsbClient_Close(const TinyCLR_UsbClient_Provider* self, int32_t pipe);
-TinyCLR_Result LPC17_UsbClient_Write(const TinyCLR_UsbClient_Provider* self, int32_t pipe, const uint8_t* data, size_t& length);
-TinyCLR_Result LPC17_UsbClient_Read(const TinyCLR_UsbClient_Provider* self, int32_t pipe, uint8_t* data, size_t& length);
-TinyCLR_Result LPC17_UsbClient_Flush(const TinyCLR_UsbClient_Provider* self, int32_t pipe);
-TinyCLR_Result LPC17_UsbClient_SetDataReceivedHandler(const TinyCLR_UsbClient_Provider* self, TinyCLR_UsbClient_DataReceivedHandler handler);
 
-TinyCLR_Result LPC17_UsbClient_SetDeviceDescriptor(const TinyCLR_UsbClient_Provider* self, const void* descriptor, int32_t length);
-TinyCLR_Result LPC17_UsbClient_SetConfigDescriptor(const TinyCLR_UsbClient_Provider* self, const void* descriptor, int32_t length);
-TinyCLR_Result LPC17_UsbClient_SetStringDescriptor(const TinyCLR_UsbClient_Provider* self, TinyCLR_UsbClient_StringDescriptorType type, const wchar_t* value);
-TinyCLR_Result LPC17_UsbClient_SetOsExtendedPropertyHandler(const TinyCLR_UsbClient_Provider* self, TinyCLR_UsbClient_OsExtendedPropertyHandler handler);
-void LPC17_UsbClient_Reset();
+struct USB_PACKET64;
+struct USB_CONTROLLER_STATE;
+typedef void(*USB_NEXT_CALLBACK)(USB_CONTROLLER_STATE*);
+
+void TinyCLR_UsbClient_ClearEvent(USB_CONTROLLER_STATE *usbState, uint32_t event);
+void TinyCLR_UsbClient_ClearEndpoints(USB_CONTROLLER_STATE *usbState, int32_t endpoint);
+USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(USB_CONTROLLER_STATE* usbState, int32_t endpoint, bool& disableRx);
+USB_PACKET64* TinyCLR_UsbClient_TxDequeue(USB_CONTROLLER_STATE* usbState, int32_t endpoint);
+void TinyCLR_UsbClient_StateCallback(USB_CONTROLLER_STATE* usbState);
+uint8_t TinyCLR_UsbClient_ControlCallback(USB_CONTROLLER_STATE* usbState);
 
 // LCD
 void LPC17_Display_Reset();
@@ -400,7 +401,7 @@ TinyCLR_Result LPC17_Display_WriteString(const TinyCLR_Display_Provider* self, c
 //Startup
 void LPC17_Startup_Initialize();
 void LPC17_Startup_GetHeap(uint8_t*& start, size_t& length);
-void LPC17_Startup_GetDebuggerTransportProvider(const TinyCLR_Api_Info*& api, size_t& index);
+void LPC17_Startup_GetDebuggerTransportProvider(const TinyCLR_Api_Info*& api, size_t& index, const void*& configuration);
 void LPC17_Startup_GetRunApp(bool& runApp);
 
 void LPC17_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider);

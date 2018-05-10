@@ -307,9 +307,6 @@ const uint8_t characters[129][5] = {
 0x08,0x1c,0x2a,0x08,0x08, /* -> */
 0xff,0xff,0xff,0xff,0xff, /* 	 	0x80 */
 };
-#define VIDEO_RAM_SIZE (800*600*2) // Maximum LCD screen size times bytes per pixel
-#define UNCACHE_LCD_BUFFER_ADDRESS 0xC0E00000
-#define VIDEO_RAM_ADDRESS (UNCACHE_LCD_BUFFER_ADDRESS) // Maximum LCD screen size times bytes per pixel
 
 #define LCD_MAX_ROW	32
 #define LCD_MAX_COLUMN 70
@@ -340,14 +337,16 @@ bool m_STM32F7_DisplayHorizontalSyncPolarity = false;
 bool m_STM32F7_DisplayVerticalSyncPolarity = false;
 bool m_STM32F7_DisplayEnable = false;
 
-uint16_t* m_STM32F7_Display_VituralRam;
+uint16_t* m_STM32F7_Display_VituralRam = nullptr;
+size_t m_STM32F7_DisplayBufferSize = 0;
+
 uint8_t m_STM32F7_Display_TextBuffer[LCD_MAX_COLUMN][LCD_MAX_ROW];
 
 STM32F7xx_LCD_Rotation m_STM32F7_Display_CurrentRotation = STM32F7xx_LCD_Rotation::rotateNormal_0;
 
 bool STM32F7_Display_Initialize();
 bool STM32F7_Display_Uninitialize();
-bool STM32F7_Display_SetPinConfiguration();
+bool STM32F7_Display_SetPinConfiguration(bool enable);
 
 void STM32F7_Display_WriteFormattedChar(uint8_t c);
 void STM32F7_Display_WriteChar(uint8_t c, int32_t row, int32_t col);
@@ -620,7 +619,10 @@ bool STM32F7_Display_Initialize() {
     pLayerCfg.PixelFormat = LTDC_PIXEL_FORMAT_RGB565;
 
     /* Start Address configuration : frame buffer is located at FLASH memory */
-    pLayerCfg.FBStartAdress = (uint32_t)VIDEO_RAM_ADDRESS;
+    if (m_STM32F7_Display_VituralRam == nullptr)
+        return false;
+
+    pLayerCfg.FBStartAdress = (uint32_t)m_STM32F7_Display_VituralRam;
 
     /* Alpha constant (255 == totally opaque) */
     pLayerCfg.Alpha = 255;
@@ -647,13 +649,11 @@ bool STM32F7_Display_Initialize() {
     /* Configure the Layer*/
     STM32F7_Ltdc_LayerConfiguration(&hltdc_F, &pLayerCfg, 1);
 
-    m_STM32F7_DisplayEnable = true;
-
     return true;
 }
 
 bool STM32F7_Display_Uninitialize() {
-    m_STM32F7_DisplayEnable = false;
+    RCC->APB2ENR &= ~RCC_APB2ENR_LTDCEN;
 
     return true;
 }
@@ -790,35 +790,60 @@ void STM32F7_Display_TextShiftColUp() {
 }
 
 void STM32F7_Display_Clear() {
-    if (m_STM32F7_DisplayEnable == false)
+    if (m_STM32F7_DisplayEnable == false || m_STM32F7_Display_VituralRam == nullptr)
         return;
 
-    memset((uint32_t*)m_STM32F7_Display_VituralRam, 0, VIDEO_RAM_SIZE);
+    memset((uint32_t*)m_STM32F7_Display_VituralRam, 0, m_STM32F7_DisplayBufferSize);
 }
 
 const STM32F7_Gpio_Pin g_Display_ControllerPins[] = STM32F7_DISPLAY_CONTROLLER_PINS;
 const STM32F7_Gpio_Pin g_Display_BacklightPin = STM32F7_DISPLAY_BACKLIGHT_PIN;
 const STM32F7_Gpio_Pin g_Display_EnablePin = STM32F7_DISPLAY_ENABLE_PIN;
 
-bool  STM32F7_Display_SetPinConfiguration() {
-    for (int32_t i = 0; i < SIZEOF_ARRAY(g_Display_ControllerPins); i++) {
-        STM32F7_GpioInternal_ConfigurePin(g_Display_ControllerPins[i].number, STM32F7_Gpio_PortMode::AlternateFunction, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, g_Display_ControllerPins[i].alternateFunction);
-    }
+bool STM32F7_Display_SetPinConfiguration(bool enable) {
+    if (enable) {
+        for (int32_t i = 0; i < SIZEOF_ARRAY(g_Display_ControllerPins); i++) {
+            if (!STM32F7_GpioInternal_OpenPin(g_Display_ControllerPins[i].number)) {
+                return false;
+            }
 
-    if (m_STM32F7_DisplayOutputEnableIsFixed) {
-        STM32F7_GpioInternal_ConfigurePin(g_Display_EnablePin.number, STM32F7_Gpio_PortMode::GeneralPurposeOutput, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, STM32F7_Gpio_AlternateFunction::AF0);
-        STM32F7_GpioInternal_WritePin(g_Display_EnablePin.number, m_STM32F7_DisplayOutputEnablePolarity);
+            STM32F7_GpioInternal_ConfigurePin(g_Display_ControllerPins[i].number, STM32F7_Gpio_PortMode::AlternateFunction, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, g_Display_ControllerPins[i].alternateFunction);
+        }
+
+        if (!STM32F7_GpioInternal_OpenPin(g_Display_EnablePin.number)) {
+            return false;
+        }
+
+        if (m_STM32F7_DisplayOutputEnableIsFixed) {
+            STM32F7_GpioInternal_ConfigurePin(g_Display_EnablePin.number, STM32F7_Gpio_PortMode::GeneralPurposeOutput, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, STM32F7_Gpio_AlternateFunction::AF0);
+            STM32F7_GpioInternal_WritePin(g_Display_EnablePin.number, m_STM32F7_DisplayOutputEnablePolarity);
+        }
+        else {
+            STM32F7_GpioInternal_ConfigurePin(g_Display_EnablePin.number, STM32F7_Gpio_PortMode::AlternateFunction, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, g_Display_EnablePin.alternateFunction);
+        }
+
+        if (g_Display_BacklightPin.number != PIN_NONE) {
+            if (!STM32F7_GpioInternal_OpenPin(g_Display_BacklightPin.number)) {
+                return false;
+            }
+
+            STM32F7_GpioInternal_ConfigurePin(g_Display_BacklightPin.number, STM32F7_Gpio_PortMode::GeneralPurposeOutput, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, g_Display_BacklightPin.alternateFunction);
+            STM32F7_GpioInternal_WritePin(g_Display_BacklightPin.number, true);
+        }
     }
     else {
-        STM32F7_GpioInternal_ConfigurePin(g_Display_EnablePin.number, STM32F7_Gpio_PortMode::AlternateFunction, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, g_Display_EnablePin.alternateFunction);
-    }
+        for (int32_t i = 0; i < SIZEOF_ARRAY(g_Display_ControllerPins); i++) {
+            STM32F7_GpioInternal_ClosePin(g_Display_ControllerPins[i].number);
+        }
 
-    // backlight D7
-    STM32F7_GpioInternal_ConfigurePin(g_Display_BacklightPin.number, STM32F7_Gpio_PortMode::GeneralPurposeOutput, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::High, STM32F7_Gpio_PullDirection::None, g_Display_BacklightPin.alternateFunction);
-    STM32F7_GpioInternal_WritePin(g_Display_BacklightPin.number, true);
+        STM32F7_GpioInternal_ClosePin(g_Display_EnablePin.number);
+
+        STM32F7_GpioInternal_ClosePin(g_Display_BacklightPin.number);
+    }
 
     return true;
 }
+
 uint32_t* STM32F7_Display_GetFrameBuffer() {
     return (uint32_t*)m_STM32F7_Display_VituralRam;
 }
@@ -1002,27 +1027,47 @@ void STM32F7_Display_GetRotatedDimensions(int32_t *screenWidth, int32_t *screenH
 TinyCLR_Result STM32F7_Display_Acquire(const TinyCLR_Display_Provider* self) {
     m_STM32F7_Display_CurrentRotation = STM32F7xx_LCD_Rotation::rotateNormal_0;
 
-    m_STM32F7_Display_VituralRam = (uint16_t*)VIDEO_RAM_ADDRESS;
+    if (!STM32F7_Display_SetPinConfiguration(true)) {
+        return TinyCLR_Result::SharingViolation;
+    }
 
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F7_Display_Release(const TinyCLR_Display_Provider* self) {
-    if (STM32F7_Display_Uninitialize())
-        return TinyCLR_Result::Success;
+    STM32F7_Display_Uninitialize();
 
-    return  TinyCLR_Result::InvalidOperation;
+    STM32F7_Display_SetPinConfiguration(false);
+
+    m_STM32F7_DisplayEnable = false;
+
+    if (m_STM32F7_Display_VituralRam != nullptr) {
+        auto memoryProvider = (const TinyCLR_Memory_Provider*)apiProvider->FindDefault(apiProvider, TinyCLR_Api_Type::MemoryProvider);
+
+        memoryProvider->Free(memoryProvider, m_STM32F7_Display_VituralRam);
+
+        m_STM32F7_Display_VituralRam = nullptr;
+    }
+
+    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F7_Display_Enable(const TinyCLR_Display_Provider* self) {
-    if (STM32F7_Display_SetPinConfiguration() && STM32F7_Display_Initialize())
+    if (m_STM32F7_DisplayEnable || STM32F7_Display_Initialize()) {
+        m_STM32F7_DisplayEnable = true;
+
         return TinyCLR_Result::Success;
+    }
 
     return TinyCLR_Result::InvalidOperation;
 }
 
 TinyCLR_Result STM32F7_Display_Disable(const TinyCLR_Display_Provider* self) {
-    return TinyCLR_Result::NotSupported;
+    STM32F7_Display_Uninitialize();
+
+    m_STM32F7_DisplayEnable = false;
+
+    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F7_Display_SetConfiguration(const TinyCLR_Display_Provider* self, TinyCLR_Display_DataFormat dataFormat, uint32_t width, uint32_t height, const void* configuration) {
@@ -1051,9 +1096,33 @@ TinyCLR_Result STM32F7_Display_SetConfiguration(const TinyCLR_Display_Provider* 
         m_STM32F7_DisplayVerticalSyncPulseWidth = cfg.VerticalSyncPulseWidth;
         m_STM32F7_DisplayVerticalFrontPorch = cfg.VerticalFrontPorch;
         m_STM32F7_DisplayVerticalBackPorch = cfg.VerticalBackPorch;
+
+        switch (dataFormat) {
+        case TinyCLR_Display_DataFormat::Rgb565:
+            m_STM32F7_DisplayBufferSize = width * height * 2;
+            break;
+
+        default:
+            // TODO 8 - 24 - 32 bits
+            break;
+        }
+
+        auto memoryProvider = (const TinyCLR_Memory_Provider*)apiProvider->FindDefault(apiProvider, TinyCLR_Api_Type::MemoryProvider);
+
+        if (m_STM32F7_Display_VituralRam != nullptr) {
+            memoryProvider->Free(memoryProvider, m_STM32F7_Display_VituralRam);
+
+            m_STM32F7_Display_VituralRam = nullptr;
+        }
+
+        m_STM32F7_Display_VituralRam = (uint16_t*)((uint8_t*)memoryProvider->Allocate(memoryProvider, m_STM32F7_DisplayBufferSize));
+
+        if (m_STM32F7_Display_VituralRam == nullptr) {
+            return TinyCLR_Result::OutOfMemory;
+        }
     }
 
-    return  TinyCLR_Result::Success;
+    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F7_Display_GetConfiguration(const TinyCLR_Display_Provider* self, TinyCLR_Display_DataFormat& dataFormat, uint32_t& width, uint32_t& height, void* configuration) {
@@ -1081,6 +1150,8 @@ TinyCLR_Result STM32F7_Display_GetConfiguration(const TinyCLR_Display_Provider* 
         cfg.VerticalSyncPulseWidth = m_STM32F7_DisplayVerticalSyncPulseWidth;
         cfg.VerticalFrontPorch = m_STM32F7_DisplayVerticalFrontPorch;
         cfg.VerticalBackPorch = m_STM32F7_DisplayVerticalBackPorch;
+
+        return TinyCLR_Result::Success;
     }
 
     return TinyCLR_Result::InvalidOperation;
@@ -1128,6 +1199,8 @@ const TinyCLR_Api_Info* STM32F7_Display_GetApi() {
     displayApi.Count = 1;
     displayApi.Implementation = &displayProvider;
 
+    m_STM32F7_Display_VituralRam = nullptr;
+
     return &displayApi;
 }
 
@@ -1135,7 +1208,7 @@ void STM32F7_Display_Reset() {
     STM32F7_Display_Clear();
 
     if (m_STM32F7_DisplayEnable)
-        STM32F7_Display_Uninitialize();
+        STM32F7_Display_Release(&displayProvider);
 
     m_STM32F7_DisplayEnable = false;
 }
