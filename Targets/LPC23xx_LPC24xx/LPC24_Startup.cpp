@@ -15,7 +15,7 @@
 
 #include "LPC24.h"
 
-void LPC24_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
+void LPC24_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider, const TinyCLR_Interop_Provider* interopProvider) {
 #ifdef INCLUDE_ADC
     LPC24_Adc_Reset();
 #endif
@@ -33,9 +33,12 @@ void LPC24_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
 #endif
 #ifdef INCLUDE_I2C
     LPC24_I2c_Reset();
-#endif    
+#endif
 #ifdef INCLUDE_PWM
     LPC24_Pwm_Reset();
+#endif
+#ifdef INCLUDE_SD
+    LPC24_SdCard_Reset();
 #endif
 #ifdef INCLUDE_SPI
     LPC24_Spi_Reset();
@@ -43,7 +46,7 @@ void LPC24_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
 #ifdef INCLUDE_UART
     LPC24_Uart_Reset();
 #endif
-#ifdef INCLUDE_USBCLIENT 
+#ifdef INCLUDE_USBCLIENT
     LPC24_UsbClient_Reset();
 #endif
 }

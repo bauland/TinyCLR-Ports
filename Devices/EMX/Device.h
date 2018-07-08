@@ -17,7 +17,7 @@
 #define DEVICE_TARGET LPC24
 #define DEVICE_NAME "EMX"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (11ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (12ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5004
@@ -74,11 +74,22 @@
 
 #define INCLUDE_RTC
 
+#define INCLUDE_SD
+#define LPC24_SD_DATA0_PINS { { PIN(1, 6), PF(2) } }
+#define LPC24_SD_DATA1_PINS { { PIN(1, 7), PF(2) } }
+#define LPC24_SD_DATA2_PINS { { PIN(1, 11), PF(2) } }
+#define LPC24_SD_DATA3_PINS { { PIN(1, 12), PF(2) } }
+#define LPC24_SD_CLK_PINS { { PIN(1, 2), PF(2) } }
+#define LPC24_SD_CMD_PINS { { PIN(1, 3), PF(2) } }
+#define LPC24_SD_PWR_PINS  { { PIN(1, 5), PF(0) } }
+
 #define INCLUDE_SPI
 #define TOTAL_SPI_CONTROLLERS 2
 #define LPC24_SPI_SCLK_PINS { { PIN(0, 15), PF(2) }, { PIN(0,  7), PF(2) } }
 #define LPC24_SPI_MISO_PINS { { PIN(0, 17), PF(2) }, { PIN(0,  8), PF(2) } }
 #define LPC24_SPI_MOSI_PINS { { PIN(0, 18), PF(2) }, { PIN(0,  9), PF(2) } }
+
+#define LPC24_TIME_DEFAULT_CONTROLLER_ID 0
 
 #define INCLUDE_UART
 #define TOTAL_UART_CONTROLLERS 4

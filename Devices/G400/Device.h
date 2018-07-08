@@ -17,7 +17,7 @@
 #define DEVICE_TARGET AT91
 #define DEVICE_NAME "G400"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (11ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (12ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5008
@@ -73,11 +73,21 @@
 
 #define INCLUDE_RTC
 
+#define INCLUDE_SD
+#define AT91_SD_DATA0_PINS { { PIN(A, 15), PS(A) } }
+#define AT91_SD_DATA1_PINS { { PIN(A, 18), PS(A) } }
+#define AT91_SD_DATA2_PINS { { PIN(A, 19), PS(A) } }
+#define AT91_SD_DATA3_PINS { { PIN(A, 20), PS(A) } }
+#define AT91_SD_CLK_PINS { { PIN(A, 17), PS(A) } }
+#define AT91_SD_CMD_PINS { { PIN(A, 16), PS(A) } }
+
 #define INCLUDE_SPI
 #define TOTAL_SPI_CONTROLLERS 2
 #define AT91_SPI_MISO_PINS { { PIN(A,11), PS(A) }, { PIN(A,21), PS(B) } }
 #define AT91_SPI_MOSI_PINS { { PIN(A,12), PS(A) }, { PIN(A,22), PS(B) } }
 #define AT91_SPI_SCLK_PINS { { PIN(A,13), PS(A) }, { PIN(A,23), PS(B) } }
+
+#define AT91_TIME_DEFAULT_CONTROLLER_ID 0
 
 #define INCLUDE_UART
 #define TOTAL_UART_CONTROLLERS 6

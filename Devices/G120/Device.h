@@ -19,7 +19,7 @@
 #define DEVICE_TARGET LPC17
 #define DEVICE_NAME "G120"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (11ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((0ULL << 48) | (12ULL << 32) | (0ULL << 16) | (0ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5007
@@ -82,6 +82,15 @@
 #define LPC17_G120E_PWM_PINS { { { PIN(3, 16), PF(2) }, { PIN(3, 17), PF(2) }, { PIN(3, 18), PF(2) }, { PIN(3, 19), PF(2) }, { PIN(3, 20), PF(2) }, { PIN(3, 21), PF(2) } }, { { PIN(3, 24), PF(2) }, { PIN(3, 25), PF(2) }, { PIN(3, 26), PF(2) }, { PIN(3, 27), PF(2) }, { PIN(3, 28), PF(2) }, { PIN(3, 29), PF(2) } } }
 
 #define INCLUDE_RTC
+
+#define INCLUDE_SD
+#define LPC17_SD_DATA0_PINS { { PIN(1, 6), PF(2) } }
+#define LPC17_SD_DATA1_PINS { { PIN(1, 7), PF(2) } }
+#define LPC17_SD_DATA2_PINS { { PIN(1, 11), PF(2) } }
+#define LPC17_SD_DATA3_PINS { { PIN(1, 12), PF(2) } }
+#define LPC17_SD_CLK_PINS { { PIN(1, 2), PF(2) } }
+#define LPC17_SD_CMD_PINS { { PIN(1, 3), PF(2) } }
+#define LPC17_SD_PWR_PINS  { { PIN(1, 5), PF(0) } }
 
 #define INCLUDE_SPI
 #define TOTAL_SPI_CONTROLLERS 3

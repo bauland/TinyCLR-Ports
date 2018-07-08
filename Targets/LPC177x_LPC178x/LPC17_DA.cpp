@@ -39,7 +39,6 @@ bool g_lpc17_dac_isOpened[SIZEOF_ARRAY(g_lpc17_dac_pins)];
 
 const TinyCLR_Api_Info* LPC17_Dac_GetApi() {
     dacProvider.Parent = &dacApi;
-    dacProvider.Index = 0;
     dacProvider.Acquire = &LPC17_Dac_Acquire;
     dacProvider.Release = &LPC17_Dac_Release;
     dacProvider.AcquireChannel = &LPC17_Dac_AcquireChannel;
@@ -49,32 +48,32 @@ const TinyCLR_Api_Info* LPC17_Dac_GetApi() {
     dacProvider.GetResolutionInBits = &LPC17_Dac_GetResolutionInBits;
     dacProvider.GetMinValue = &LPC17_Dac_GetMinValue;
     dacProvider.GetMaxValue = &LPC17_Dac_GetMaxValue;
+    dacProvider.GetControllerCount = &LPC17_Dac_GetControllerCount;
 
     dacApi.Author = "GHI Electronics, LLC";
     dacApi.Name = "GHIElectronics.TinyCLR.NativeApis.LPC17.DacProvider";
     dacApi.Type = TinyCLR_Api_Type::DacProvider;
     dacApi.Version = 0;
-    dacApi.Count = 1;
     dacApi.Implementation = &dacProvider;
 
     return &dacApi;
 }
 
-TinyCLR_Result LPC17_Dac_Acquire(const TinyCLR_Dac_Provider* self) {
+TinyCLR_Result LPC17_Dac_Acquire(const TinyCLR_Dac_Provider* self, int32_t controller) {
     if (self == nullptr)
         return TinyCLR_Result::ArgumentNull;
 
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result LPC17_Dac_Release(const TinyCLR_Dac_Provider* self) {
+TinyCLR_Result LPC17_Dac_Release(const TinyCLR_Dac_Provider* self, int32_t controller) {
     if (self == nullptr)
         return TinyCLR_Result::ArgumentNull;
 
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result LPC17_Dac_AcquireChannel(const TinyCLR_Dac_Provider* self, int32_t channel) {
+TinyCLR_Result LPC17_Dac_AcquireChannel(const TinyCLR_Dac_Provider* self, int32_t controller, int32_t channel) {
     if (channel >= SIZEOF_ARRAY(g_lpc17_dac_pins))
         return TinyCLR_Result::ArgumentOutOfRange;
 
@@ -90,7 +89,7 @@ TinyCLR_Result LPC17_Dac_AcquireChannel(const TinyCLR_Dac_Provider* self, int32_
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result LPC17_Dac_ReleaseChannel(const TinyCLR_Dac_Provider* self, int32_t channel) {
+TinyCLR_Result LPC17_Dac_ReleaseChannel(const TinyCLR_Dac_Provider* self, int32_t controller, int32_t channel) {
     if (channel >= SIZEOF_ARRAY(g_lpc17_dac_pins))
         return TinyCLR_Result::ArgumentOutOfRange;
 
@@ -105,7 +104,7 @@ TinyCLR_Result LPC17_Dac_ReleaseChannel(const TinyCLR_Dac_Provider* self, int32_
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result LPC17_Dac_WriteValue(const TinyCLR_Dac_Provider* self, int32_t channel, int32_t value) {
+TinyCLR_Result LPC17_Dac_WriteValue(const TinyCLR_Dac_Provider* self, int32_t controller, int32_t channel, int32_t value) {
     if (channel >= SIZEOF_ARRAY(g_lpc17_dac_pins))
         return TinyCLR_Result::ArgumentOutOfRange;
 
@@ -122,27 +121,33 @@ TinyCLR_Result LPC17_Dac_WriteValue(const TinyCLR_Dac_Provider* self, int32_t ch
     return TinyCLR_Result::Success;
 }
 
-int32_t LPC17_Dac_GetChannelCount(const TinyCLR_Dac_Provider* self) {
+int32_t LPC17_Dac_GetChannelCount(const TinyCLR_Dac_Provider* self, int32_t controller) {
     return SIZEOF_ARRAY(g_lpc17_dac_pins);
 }
 
-int32_t LPC17_Dac_GetResolutionInBits(const TinyCLR_Dac_Provider* self) {
+int32_t LPC17_Dac_GetResolutionInBits(const TinyCLR_Dac_Provider* self, int32_t controller) {
     return LPC17_DAC_PRECISION_BITS;
 }
 
-int32_t LPC17_Dac_GetMinValue(const TinyCLR_Dac_Provider* self) {
+int32_t LPC17_Dac_GetMinValue(const TinyCLR_Dac_Provider* self, int32_t controller) {
     return 0;
 }
 
-int32_t LPC17_Dac_GetMaxValue(const TinyCLR_Dac_Provider* self) {
+int32_t LPC17_Dac_GetMaxValue(const TinyCLR_Dac_Provider* self, int32_t controller) {
     return ((1 << LPC17_DAC_PRECISION_BITS) - 1);
 }
 
 void LPC17_Dac_Reset() {
-    for (auto ch = 0; ch < LPC17_Dac_GetChannelCount(&dacProvider); ch++) {
-        LPC17_Dac_ReleaseChannel(&dacProvider, ch);
+    for (auto ch = 0; ch < LPC17_Dac_GetChannelCount(&dacProvider, 0); ch++) {
+        LPC17_Dac_ReleaseChannel(&dacProvider, 0, ch);
 
         g_lpc17_dac_isOpened[ch] = false;
     }
+}
+
+TinyCLR_Result LPC17_Dac_GetControllerCount(const TinyCLR_Dac_Provider* self, int32_t& count) {
+    count = 1;
+
+    return TinyCLR_Result::Success;
 }
 

@@ -252,7 +252,7 @@ const TinyCLR_Api_Info* STM32F4_UsbClient_GetApi() {
     return TinyCLR_UsbClient_GetApi();
 }
 void STM32F4_UsbClient_Reset() {
-    return TinyCLR_UsbClient_Reset();
+    return TinyCLR_UsbClient_Reset(STM32F4_USB_FS_ID);
 }
 
 void STM32F4_UsbClient_InitializeConfiguration(USB_CONTROLLER_STATE *usbState) {
@@ -736,8 +736,10 @@ void STM32F4_UsbClient_ProtectPins(int32_t controller, bool on) {
     TinyCLR_UsbClient_StateCallback(usbState);
 }
 
-int8_t TinyCLR_UsbClient_GetTotalController() {
-    return STM32F4_TOTAL_USB_CONTROLLERS;
+TinyCLR_Result TinyCLR_UsbClient_GetControllerCount(const TinyCLR_UsbClient_Provider* self, int32_t& count) {
+    count = STM32F4_TOTAL_USB_CONTROLLERS;
+
+    return TinyCLR_Result::Success;
 }
 
 bool TinyCLR_UsbClient_Initialize(USB_CONTROLLER_STATE* usbState) {

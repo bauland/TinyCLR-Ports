@@ -803,7 +803,7 @@ const TinyCLR_Api_Info* AT91_UsbClient_GetApi() {
 }
 
 void AT91_UsbClient_Reset() {
-    return TinyCLR_UsbClient_Reset();
+    return TinyCLR_UsbClient_Reset(0);
 }
 
 void AT91_UsbClient_InitializeConfiguration(USB_CONTROLLER_STATE *usbState) {
@@ -929,8 +929,11 @@ bool AT91_UsbClient_RxEnable(USB_CONTROLLER_STATE* usbState, int32_t endpoint) {
 
     return true;
 }
-int8_t TinyCLR_UsbClient_GetTotalController() {
-    return AT91_TOTAL_USB_CONTROLLERS;
+
+TinyCLR_Result TinyCLR_UsbClient_GetControllerCount(const TinyCLR_UsbClient_Provider* self, int32_t& count) {
+    count = AT91_TOTAL_USB_CONTROLLERS;
+
+    return TinyCLR_Result::Success;
 }
 
 bool TinyCLR_UsbClient_Initialize(USB_CONTROLLER_STATE* usbState) {

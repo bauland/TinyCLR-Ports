@@ -17,7 +17,7 @@
 
 #include "LPC17.h"
 
-void LPC17_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
+void LPC17_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider, const TinyCLR_Interop_Provider* interopProvider) {
 #ifdef INCLUDE_ADC
     LPC17_Adc_Reset();
 #endif
@@ -38,6 +38,9 @@ void LPC17_Startup_OnSoftReset(const TinyCLR_Api_Provider* apiProvider) {
 #endif
 #ifdef INCLUDE_PWM
     LPC17_Pwm_Reset();
+#endif
+#ifdef INCLUDE_SD
+    LPC17_SdCard_Reset();
 #endif
 #ifdef INCLUDE_SPI
     LPC17_Spi_Reset();
