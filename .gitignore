@@ -6,3 +6,7 @@ CMSIS/
 
 # Visual Studio
 .vs/
+Core/Interop/GHIElectronics_TinyCLR_Drawing.h
+Core/Interop/GHIElectronics_TinyCLR_Devices.h
+Core/Interop/mscorlib.h
+Core/Interop/GHIElectronics_TinyCLR_IO.h

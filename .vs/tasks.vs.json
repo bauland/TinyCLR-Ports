@@ -11,12 +11,12 @@
       ]
     },
     {
-      "taskName": "Build Electron",
+      "taskName": "Build Electron11",
       "appliesTo": "build.bat",
       "type": "default",
       "command": "${env.COMSPEC}",
       "args": [
-        "build Electron"
+        "build Electron11"
       ]
     },
     {
@@ -92,12 +92,12 @@
       ]
     },
     {
-      "taskName": "Clean Electron",
+      "taskName": "Clean Electron11",
       "appliesTo": "build.bat",
       "type": "default",
       "command": "${env.COMSPEC}",
       "args": [
-        "build Electron clean"
+        "build Electron11 clean"
       ]
     },
     {
@@ -162,6 +162,16 @@
       "args": [
         "build netduino3 clean"
       ]
+    },
+    {
+      "taskName": "tâche-build",
+      "appliesTo": "build.bat",
+      "type": "launch"
+    },
+    {
+      "taskName": "tâche-build",
+      "appliesTo": "build.bat",
+      "type": "launch"
     }
   ]
 }
