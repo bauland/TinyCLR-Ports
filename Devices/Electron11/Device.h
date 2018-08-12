@@ -29,11 +29,11 @@
 #define UART_DEBUGGER_INDEX 0
 #define USB_DEBUGGER_INDEX 0
 
-#define DEBUGGER_SELECTOR_PIN PIN(B, 10)
+#define DEBUGGER_SELECTOR_PIN PIN(B, 8)
 #define DEBUGGER_SELECTOR_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define DEBUGGER_SELECTOR_USB_STATE TinyCLR_Gpio_PinValue::High
 
-#define RUN_APP_PIN PIN(C, 13)
+#define RUN_APP_PIN PIN(B, 9)
 #define RUN_APP_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define RUN_APP_STATE TinyCLR_Gpio_PinValue::High
 
