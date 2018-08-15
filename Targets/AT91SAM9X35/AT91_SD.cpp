@@ -13,11 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#if defined(__GNUC__)
-// Temporary disable optimize
-#pragma GCC optimize 0
-#endif
-
 #include "AT91.h"
 
 #include <string.h>
@@ -64,10 +59,10 @@
 #define GPDMA_Source_Register_Channel            (*(volatile uint32_t *)(0xFFFFEC3C)) // chanel 0 default
 #define GPDMA_Destination_Register_Channel        (*(volatile uint32_t *)(0xFFFFEC40)) // chanel 0 default
 
-uint32_t DMA_Config(uint32_t DMAMode, uint8_t* pData);
-uint32_t DMA_Init(void);
-uint32_t DMA_EnableChannel(void);
-uint32_t DMA_DiableChannel(void);
+void DMA_Config(uint32_t DMAMode, uint8_t* pData);
+void DMA_Init(void);
+void DMA_EnableChannel(void);
+void DMA_DiableChannel(void);
 void DMA_Enable(void);
 
 /******************************************************************************
@@ -79,7 +74,7 @@ void DMA_Enable(void);
 ** Returned value:        true or false, false if ISR can't be installed.
 **
 ******************************************************************************/
-uint32_t DMA_Init(void) {
+void DMA_Init(void) {
     AT91_PMC &pmc = AT91::PMC();
     pmc.EnablePeriphClock(AT91C_ID_DMAC0);
 
@@ -97,26 +92,23 @@ uint32_t DMA_Init(void) {
 ** Returned value:        true or false
 **
 ******************************************************************************/
-uint32_t DMA_EnableChannel(void) {
+void DMA_EnableChannel() {
     DMAC0_CHER_REG |= (1 << 0);                         // Enable chanel 0
     while ((DMAC0_CHSR_REG & (1 << 0)) == 0);
 
 }
-uint32_t DMA_DiableChannel(void) {
-
+void DMA_DiableChannel() {
     DMAC0_CHDR_REG |= (1 << 0);                         // Enable chanel 0
     while ((DMAC0_CHSR_REG & (1 << 0)) == 1);
 }
 
 void DMA_Enable() {
-
     DMAC0_EN_REG = 0x01;    /* Enable DMA channels, little endian */
     while (!(DMAC0_EN_REG & 0x01));
 }
 
-uint32_t DMA_Config(uint32_t DMAMode, uint8_t* pData) {
-    uint32_t error_status;
-    error_status = DMAC0_EBCISR_REG;  // clear interrupt
+void DMA_Config(uint32_t DMAMode, uint8_t* pData) {
+    volatile uint32_t error_status = DMAC0_EBCISR_REG; // dump register
 
     if (DMAMode == P2M) // for read
     {
@@ -171,8 +163,6 @@ uint32_t DMA_Config(uint32_t DMAMode, uint8_t* pData) {
     }
 
     DMA_EnableChannel();
-
-    return (true);
 }
 
 // MCI
@@ -280,7 +270,7 @@ uint32_t DMA_Config(uint32_t DMAMode, uint8_t* pData) {
 /// Card did not answer command.
 #define MCI_STATUS_NORESPONSE   3
 
-/// MCI driver is currently in use.
+/// MCI state is currently in use.
 #define MCI_ERROR_LOCK    1
 
 /// MCI configuration with 1-bit data bus on slot A (for MMC cards).
@@ -344,7 +334,7 @@ typedef struct _MciCmd {
 } MciCmd;
 
 //------------------------------------------------------------------------------
-/// MCI driver structure. Holds the internal state of the MCI driver and
+/// MCI state structure. Holds the internal state of the MCI state and
 /// prevents parallel access to a MCI peripheral.
 //------------------------------------------------------------------------------
 typedef struct {
@@ -359,9 +349,6 @@ typedef struct {
     volatile int8_t semaphore;
 
 } Mci;
-
-/// Master clock frequency (when using board_lowlevel.c).
-#define BOARD_MCK               ((12000000 * 50 / 3) / 2)
 
 //------------------------------------------------------------------------------
 //         Local constants
@@ -392,10 +379,6 @@ typedef struct {
 #define SDCARD_APP_OP_COND_CMD      (41 | AT91C_MCI_SPCMD_NONE  | AT91C_MCI_RSPTYP_48   | AT91C_MCI_TRCMD_NO )
 #define MMC_SEND_OP_COND_CMD        (1  | AT91C_MCI_TRCMD_NO    | AT91C_MCI_SPCMD_NONE  | AT91C_MCI_RSPTYP_48 | AT91C_MCI_OPDCMD)
 
-
-#define DISABLE    0    // Disable MCI interface
-#define ENABLE     1    // Enable MCI interface
-
 //------------------------------------------------------------------------------
 //         Local macros
 //------------------------------------------------------------------------------
@@ -415,28 +398,28 @@ typedef struct {
 
 void MCI_SetSpeed(Mci *pMci, uint32_t mciSpeed);
 
-uint8_t MCI_SendCommand(Mci *pMci, MciCmd *pMciCmd);
+void MCI_SendCommand(Mci *pMci, MciCmd *pMciCmd);
 
 void MCI_Handler(Mci *pMci);
 
-uint8_t MCI_IsTxComplete(MciCmd *pMciCmd);
+bool MCI_IsTxComplete(MciCmd *pMciCmd);
 
-uint8_t MCI_CheckBusy(Mci *pMci);
+bool MCI_CheckBusy(Mci *pMci);
 
 void MCI_Close(Mci *pMci);
 
 void MCI_SetBusWidth(Mci *pMci, uint8_t busWidth);
 
 //------------------------------------------------------------------------------
-/// Enable/disable a MCI driver instance.
-/// \param pMci  Pointer to a MCI driver instance.
+/// Enable/disable a MCI state instance.
+/// \param pMci  Pointer to a MCI state instance.
 /// \param enb  0 for disable MCI and 1 for enable MCI.
 //------------------------------------------------------------------------------
-void MCI_Enable(Mci *pMci, uint8_t enb) {
+void MCI_Enable(Mci *pMci, bool enb) {
     AT91S_MCI *pMciHw = pMci->pMciHw;
 
     // Set the Control Register: Enable/Disable MCI interface clock
-    if (enb == DISABLE) {
+    if (enb == false) {
         WRITE_MCI(pMciHw, MCI_CR, AT91C_MCI_MCIDIS);
     }
     else {
@@ -445,20 +428,16 @@ void MCI_Enable(Mci *pMci, uint8_t enb) {
 }
 
 //------------------------------------------------------------------------------
-/// Initializes a MCI driver instance and the underlying peripheral.
-/// \param pMci  Pointer to a MCI driver instance.
+/// Initializes a MCI state instance and the underlying peripheral.
+/// \param pMci  Pointer to a MCI state instance.
 /// \param pMciHw  Pointer to a MCI peripheral.
 /// \param mciId  MCI peripheral identifier.
 /// \param mode  Slot and type of connected card.
 //------------------------------------------------------------------------------
-void MCI_Init(
-    Mci *pMci,
-    AT91S_MCI *pMciHw,
-    uint8_t mciId,
-    uint32_t mode) {
+void MCI_Init(Mci *pMci, AT91S_MCI *pMciHw, uint8_t mciId, uint32_t mode) {
     uint16_t clkDiv;
 
-    // Initialize the MCI driver structure
+    // Initialize the MCI state structure
     pMci->pMciHw = pMciHw;
     pMci->mciId = mciId;
     pMci->semaphore = 1;
@@ -481,8 +460,8 @@ void MCI_Init(
     // Set the Data Timeout Register
     WRITE_MCI(pMciHw, MCI_DTOR, DTOR_1MEGA_CYCLES);
 
-    // Set the Mode Register: 400KHz for MCK = 48MHz (CLKDIV = 58)
-    clkDiv = (BOARD_MCK / (400000 * 2)) - 1;
+    // Set the Mode Register: 400KHz to init the card
+    clkDiv = (AT91_SYSTEM_PERIPHERAL_CLOCK_HZ / (400000 * 2)) - 1;
     WRITE_MCI(pMciHw, MCI_MR, (clkDiv | (AT91C_MCI_PWSDIV & (0x7 << 8))));
 
     // Set the SDCard Register
@@ -497,15 +476,15 @@ void MCI_Init(
 }
 
 //------------------------------------------------------------------------------
-/// Close a MCI driver instance and the underlying peripheral.
-/// \param pMci  Pointer to a MCI driver instance.
+/// Close a MCI state instance and the underlying peripheral.
+/// \param pMci  Pointer to a MCI state instance.
 /// \param pMciHw  Pointer to a MCI peripheral.
 /// \param mciId  MCI peripheral identifier.
 //------------------------------------------------------------------------------
 void MCI_Close(Mci *pMci) {
     AT91S_MCI *pMciHw = pMci->pMciHw;
 
-    // Initialize the MCI driver structure
+    // Initialize the MCI state structure
     pMci->semaphore = 1;
     pMci->pCommand = 0;
 
@@ -524,7 +503,7 @@ void MCI_Close(Mci *pMci) {
 //------------------------------------------------------------------------------
 /// Configure the  MCI CLKDIV in the MCI_MR register. The max. for MCI clock is
 /// MCK/2 and corresponds to CLKDIV = 0
-/// \param pMci  Pointer to the low level MCI driver.
+/// \param pMci  Pointer to the low level MCI state.
 /// \param mciSpeed  MCI clock speed in Hz.
 //------------------------------------------------------------------------------
 void MCI_SetSpeed(Mci *pMci, uint32_t mciSpeed) {
@@ -532,20 +511,16 @@ void MCI_SetSpeed(Mci *pMci, uint32_t mciSpeed) {
     uint32_t mciMr;
     uint32_t clkdiv;
 
-    // Set the Mode Register: 400KHz for MCK = 48MHz (CLKDIV = 58)
     mciMr = READ_MCI(pMciHw, MCI_MR) & (~AT91C_MCI_CLKDIV);
 
-    // Multimedia Card Interface clock (MCCK or MCI_CK) is Master Clock (MCK)
-    // divided by (2*(CLKDIV+1))
     if (mciSpeed > 0) {
+        clkdiv = (AT91_SYSTEM_PERIPHERAL_CLOCK_HZ / (mciSpeed * 2));
 
-        clkdiv = (BOARD_MCK / (mciSpeed * 2));
         if (clkdiv > 0) {
             clkdiv -= 1;
         }
     }
     else {
-
         clkdiv = 0;
     }
 
@@ -555,7 +530,7 @@ void MCI_SetSpeed(Mci *pMci, uint32_t mciSpeed) {
 //------------------------------------------------------------------------------
 /// Configure the  MCI SDCBUS in the MCI_SDCR register. Only two modes available
 ///
-/// \param pMci  Pointer to the low level MCI driver.
+/// \param pMci  Pointer to the low level MCI state.
 /// \param busWidth  MCI bus width mode.
 //------------------------------------------------------------------------------
 void MCI_SetBusWidth(Mci *pMci, uint8_t busWidth) {
@@ -566,7 +541,12 @@ void MCI_SetBusWidth(Mci *pMci, uint8_t busWidth) {
 
     WRITE_MCI(pMciHw, MCI_SDCR, mciSdcr | busWidth);
 }
-uint8_t MCI_PreConfig(Mci *pMci, MciCmd *pCommand) {
+
+
+
+void MCI_PreConfig(Mci *pMci, MciCmd *pCommand) {
+    volatile uint32_t* ctrl = (volatile uint32_t *)(0xF0008054);
+
     uint32_t block_reg = (((pCommand->blockSize) << 16) | pCommand->nbBlock);
     uint32_t dma_config = 0 |            //OFFSET is 0
         (0 << 4) |        //CHKSIZE is 4
@@ -576,23 +556,19 @@ uint8_t MCI_PreConfig(Mci *pMci, MciCmd *pCommand) {
 
     WRITE_MCI(pMciHw, MCI_BLKR, block_reg); // set block size, block num
     WRITE_MCI(pMciHw, MCI_DMA, dma_config);
-    (*(volatile uint32_t *)(0xF0008054)) = //( 1<<0) | //FIFOMODE
-        (1 << 4);     //FERRCTRL
-
-
+    *ctrl = 1 << 4;
 }
 //------------------------------------------------------------------------------
 /// Starts a MCI  transfer. This is a non blocking function. It will return
 /// as soon as the transfer is started.
-/// Return 0 if successful; otherwise returns MCI_ERROR_LOCK if the driver is
+/// Return 0 if successful; otherwise returns MCI_ERROR_LOCK if the state is
 /// already in use.
-/// \param pMci  Pointer to an MCI driver instance.
+/// \param pMci  Pointer to an MCI state instance.
 /// \param pCommand  Pointer to the command to execute.
 //------------------------------------------------------------------------------
-uint8_t MCI_SendCommand(Mci *pMci, MciCmd *pCommand) {
-    AT91PS_MCI pMciHw = pMci->pMciHw;
+void MCI_SendCommand(Mci *pMci, MciCmd *pCommand) {
+    volatile AT91PS_MCI pMciHw = pMci->pMciHw;
     uint32_t mciIer = 0, mciMr = 0;
-    uint32_t status;
 
     // Command is now being executed
     pMci->pCommand = pCommand;
@@ -604,7 +580,7 @@ uint8_t MCI_SendCommand(Mci *pMci, MciCmd *pCommand) {
     WRITE_PMC(AT91C_BASE_PMC, PMC_PCER, (1 << pMci->mciId));
 
     //Disable MCI clock for new transfer
-    MCI_Enable(pMci, DISABLE);
+    MCI_Enable(pMci, false);
 
     mciMr = READ_MCI(pMciHw, MCI_MR) & (~(AT91C_MCI_WRPROOF | AT91C_MCI_RDPROOF));
 
@@ -632,31 +608,28 @@ uint8_t MCI_SendCommand(Mci *pMci, MciCmd *pCommand) {
     mciIer = AT91C_MCI_CMDRDY | STATUS_ERRORS;
 
     // Config Interrupt
-    mciIer &= ~(AT91C_MCI_UNRE | AT91C_MCI_OVRE \
-        | AT91C_MCI_DTOE | AT91C_MCI_DCRCE | AT91C_MCI_RCRCE);
+    mciIer &= ~(AT91C_MCI_UNRE | AT91C_MCI_OVRE | AT91C_MCI_DTOE | AT91C_MCI_DCRCE | AT91C_MCI_RCRCE);
 
     // Enable MCI clock - start transfer
-    MCI_Enable(pMci, ENABLE);
+    MCI_Enable(pMci, true);
     // Send the command
     WRITE_MCI(pMciHw, MCI_ARGR, pCommand->arg);
     WRITE_MCI(pMciHw, MCI_CMDR, pCommand->cmd);
 
     // Interrupt enable shall be done after PDC TXTEN and RXTEN
     WRITE_MCI(pMciHw, MCI_IER, mciIer);
-
-    return 0;
 }
 
 //------------------------------------------------------------------------------
-/// Check NOTBUSY and DTIP bits of status register on the given MCI driver.
-/// Return value, 0 for bus ready, 1 for bus busy
-/// \param pMci  Pointer to a MCI driver instance.
+/// Check NOTBUSY and DTIP bits of status register on the given MCI state.
+/// Return value, false for bus ready, true for bus busy
+/// \param pMci  Pointer to a MCI state instance.
 //------------------------------------------------------------------------------
-uint8_t MCI_CheckBusy(Mci *pMci) {
+bool MCI_CheckBusy(Mci *pMci) {
     AT91S_MCI *pMciHw = pMci->pMciHw;
     uint32_t status;
     // Enable MCI clock
-    MCI_Enable(pMci, ENABLE);
+    MCI_Enable(pMci, true);
 
     status = READ_MCI(pMciHw, MCI_SR);
 
@@ -664,36 +637,36 @@ uint8_t MCI_CheckBusy(Mci *pMci) {
         && ((status & AT91C_MCI_DTIP) == 0)) {
 
         // Disable MCI clock
-        MCI_Enable(pMci, DISABLE);
+        MCI_Enable(pMci, false);
 
-        return 0;
+        return false;
     }
     else {
-        return 1;
+        return true;
     }
 }
 
 //------------------------------------------------------------------------------
-/// Check BLKE bit of status register on the given MCI driver.
-/// \param pMci  Pointer to a MCI driver instance.
+/// Check BLKE bit of status register on the given MCI state.
+/// \param pMci  Pointer to a MCI state instance.
 //------------------------------------------------------------------------------
-uint8_t MCI_CheckBlke(Mci *pMci) {
+bool MCI_CheckBlke(Mci *pMci) {
     AT91S_MCI *pMciHw = pMci->pMciHw;
     uint32_t status;
 
     status = READ_MCI(pMciHw, MCI_SR);
 
     if ((status & AT91C_MCI_BLKE) != 0) {
-        return 0;
+        return false;
     }
     else {
-        return 1;
+        return true;
     }
 }
 
 //------------------------------------------------------------------------------
-/// Processes pending events on the given MCI driver.
-/// \param pMci  Pointer to a MCI driver instance.
+/// Processes pending events on the given MCI state.
+/// \param pMci  Pointer to a MCI state instance.
 //------------------------------------------------------------------------------
 void MCI_Handler(Mci *pMci) {
 
@@ -825,21 +798,15 @@ void MCI_Handler(Mci *pMci) {
 /// Returns 1 if the given MCI transfer is complete; otherwise returns 0.
 /// \param pCommand  Pointer to a MciCmd instance.
 //------------------------------------------------------------------------------
-uint8_t MCI_IsTxComplete(MciCmd *pCommand) {
-    if (pCommand->status != MCI_STATUS_PENDING) {
-        if (pCommand->status != 0) {
-
-        }
-        return 1;
-    }
-    else {
-        return 0;
-    }
+bool MCI_IsTxComplete(MciCmd *pCommand) {
+    return (pCommand->status != MCI_STATUS_PENDING) ? true : false;
 }
 
 // sdmmc
 
-/// There was an error with the SD driver.
+/// There was no error with the SD state.
+#define SD_ERROR_NO_ERROR        0
+/// There was an error with the SD state.
 #define SD_ERROR_DRIVER          1
 /// The SD card did not answer the command.
 #define SD_ERROR_NORESPONSE      2
@@ -946,7 +913,7 @@ typedef struct _SdCmd {
 } SdCmd;
 
 //------------------------------------------------------------------------------
-/// SD driver structure. Holds the internal state of the SD driver and
+/// SD state structure. Holds the internal state of the SD state and
 /// prevents parallel access to a SPI peripheral.
 //------------------------------------------------------------------------------
 typedef struct {
@@ -962,12 +929,12 @@ typedef struct {
 } SdDriver;
 
 //------------------------------------------------------------------------------
-/// Sdcard driver structure. It holds the current command being processed and
+/// Sdcard state structure. It holds the current command being processed and
 /// the SD card address.
 //------------------------------------------------------------------------------
 typedef struct _SdCard {
 
-    /// Pointer to the underlying MCI driver.
+    /// Pointer to the underlying MCI state.
     SdDriver *pSdDriver;
     /// Current MCI command being processed.
     SdCmd command;
@@ -1006,7 +973,6 @@ typedef struct _SdCard {
 
 #define SD_ADDRESS(pSd, address) (((pSd)->cardType == CARD_SDHC) ? \
                                  (address):((address) << SD_BLOCK_SIZE_BIT))
-
 
 //-----------------------------------------------------------------------------
 /// MMC/SD in SPI mode reports R1 status always, and R2 for SEND_STATUS
@@ -1183,10 +1149,10 @@ typedef struct _SdCard {
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
-/// Sends the current SD card driver command to the card.
+/// Sends the current SD card state command to the card.
 /// Returns 0 if successful; Otherwise, returns the transfer status code or
 /// SD_ERROR_DRIVER if there was a problem with the SD transfer.
-/// \param pSd  Pointer to a SdCard driver instance.
+/// \param pSd  Pointer to a SdCard state instance.
 //------------------------------------------------------------------------------
 
 static uint8_t SendCommand(SdCard *pSd) {
@@ -1196,19 +1162,17 @@ static uint8_t SendCommand(SdCard *pSd) {
     uint32_t i;
 
     // Send command
-    error = MCI_SendCommand((Mci *)pSdDriver, (MciCmd *)pCommand);
-    if (error) {
-        return SD_ERROR_DRIVER;
-    }
-    int timeout = TRANSFER_CMD_TIMEOUT;
+    MCI_SendCommand((Mci *)pSdDriver, (MciCmd *)pCommand);
+
+    int32_t timeout = TRANSFER_CMD_TIMEOUT;
     // Wait for command to complete
-    while (!MCI_IsTxComplete((MciCmd *)pCommand)) {
+    while (MCI_IsTxComplete((MciCmd *)pCommand) == false) {
         timeout--;
         if (timeout == 0) break;
     }
 
     if (pCommand->cmd == AT91C_STOP_TRANSMISSION_CMD) {
-        while (MCI_CheckBusy((Mci *)pSdDriver) != 0);
+        while (MCI_CheckBusy((Mci *)pSdDriver) == true);
     }
 
     // Delay between sending commands, only for MMC card test.
@@ -1226,12 +1190,11 @@ static uint8_t SendCommand(SdCard *pSd) {
 /// Initialization delay: The maximum of 1 msec, 74 clock cycles and supply ramp
 /// up time.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SdCard driver instance.
+/// \param pSd  Pointer to a SdCard state instance.
 //------------------------------------------------------------------------------
 static uint8_t Pon(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
     uint32_t response;
-    uint8_t error;
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1242,20 +1205,17 @@ static uint8_t Pon(SdCard *pSd) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
 /// Resets all cards to idle state
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SdCard driver instance.
+/// \param pSd  Pointer to a SdCard state instance.
 //------------------------------------------------------------------------------
 static uint8_t Cmd0(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
     uint32_t response;
-    uint8_t error;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1266,8 +1226,7 @@ static uint8_t Cmd0(SdCard *pSd) {
     pSd->state = SD_STATE_STBY;
 
     // send command
-    error = SendCommand(pSd);
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
@@ -1275,7 +1234,7 @@ static uint8_t Cmd0(SdCard *pSd) {
 /// Sends host capacity support information and activates the card's
 /// initialization process.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SdCard driver instance.
+/// \param pSd  Pointer to a SdCard state instance.
 //------------------------------------------------------------------------------
 static uint8_t Cmd1(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
@@ -1299,7 +1258,7 @@ static uint8_t Cmd1(SdCard *pSd) {
         return error;
     }
     if ((response & AT91C_CARD_POWER_UP_BUSY) == AT91C_CARD_POWER_UP_BUSY) {
-        return 0;
+        return SD_ERROR_NO_ERROR;
     }
     else {
         return SD_ERROR_DRIVER;
@@ -1311,7 +1270,7 @@ static uint8_t Cmd1(SdCard *pSd) {
 /// on the CMD line (any card that is
 /// connected to the host will respond)
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param pCid  Buffer for storing the CID numbers.
 //------------------------------------------------------------------------------
 static uint8_t Cmd2(SdCard *pSd, uint32_t *pCid) {
@@ -1332,7 +1291,7 @@ static uint8_t Cmd2(SdCard *pSd, uint32_t *pCid) {
 //------------------------------------------------------------------------------
 /// Ask the card to publish a new relative address (RCA)
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 //------------------------------------------------------------------------------
 static uint8_t Cmd3(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
@@ -1357,7 +1316,7 @@ static uint8_t Cmd3(SdCard *pSd) {
         return error;
     }
 
-    // Save card address in driver
+    // Save card address in state
     if (pSd->cardType != CARD_MMC) {
         pSd->cardAddress = (cardAddress >> 16) & 0xFFFF;
     }
@@ -1366,7 +1325,7 @@ static uint8_t Cmd3(SdCard *pSd) {
         pSd->cardAddress = 1;
     }
 
-    return 0;
+    return SD_ERROR_NO_ERROR;
 }
 
 //------------------------------------------------------------------------------
@@ -1374,7 +1333,7 @@ static uint8_t Cmd3(SdCard *pSd) {
 /// stand-by and transfer states or between
 /// the programming and disconnect states.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param address  Relative Card Address (0 deselects all).
 //------------------------------------------------------------------------------
 static uint8_t Cmd7(SdCard *pSd, uint32_t address) {
@@ -1399,14 +1358,13 @@ static uint8_t Cmd7(SdCard *pSd, uint32_t address) {
 /// whether card supports voltage.
 /// Returns 0 if successful; otherwise returns SD_ERROR_NORESPONSE if the card did
 /// not answer the command, or SD_ERROR_DRIVER.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param supplyVoltage  Expected supply voltage.
 //------------------------------------------------------------------------------
 static uint8_t Cmd8(SdCard *pSd, uint8_t supplyVoltage) {
     SdCmd *pCommand = &(pSd->command);
     uint32_t response[2];
     uint8_t error;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1428,7 +1386,7 @@ static uint8_t Cmd8(SdCard *pSd, uint8_t supplyVoltage) {
     // Bit 0 - 7: check pattern
     // Bit 8 -11: voltage accepted
     else if (!error && ((response[0] & 0x00000FFF) == ((supplyVoltage << 8) | 0xAA))) {
-        return 0;
+        return SD_ERROR_NO_ERROR;
     }
     else {
         return SD_ERROR_DRIVER;
@@ -1439,12 +1397,10 @@ static uint8_t Cmd8(SdCard *pSd, uint8_t supplyVoltage) {
 /// Addressed card sends its card-specific
 /// data (CSD) on the CMD line.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 //------------------------------------------------------------------------------
 static uint8_t Cmd9(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1456,20 +1412,17 @@ static uint8_t Cmd9(SdCard *pSd) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
 /// Forces the card to stop transmission
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param pStatus  Pointer to a status variable.
 //------------------------------------------------------------------------------
 static uint8_t Cmd12(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1481,21 +1434,17 @@ static uint8_t Cmd12(SdCard *pSd) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
 /// Addressed card sends its status register.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param pStatus  Pointer to a status variable.
 //------------------------------------------------------------------------------
 static uint8_t Cmd13(SdCard *pSd, uint32_t *pStatus) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1507,9 +1456,7 @@ static uint8_t Cmd13(SdCard *pSd, uint32_t *pStatus) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
@@ -1523,14 +1470,12 @@ static uint8_t Cmd13(SdCard *pSd, uint32_t *pStatus) {
 /// Bytes fixed block length is used. This command is effective for LOCK_UNLOCK command.
 /// In both cases, if block length is set larger than 512Bytes, the card sets the
 /// BLOCK_LEN_ERROR bit.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param blockLength  Block length in bytes.
 //------------------------------------------------------------------------------
 static uint8_t Cmd16(SdCard *pSd, uint16_t blockLength) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1542,15 +1487,12 @@ static uint8_t Cmd16(SdCard *pSd, uint16_t blockLength) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 // erase block start
 uint8_t Cmd32(SdCard *pSd, uint16_t startsector) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
 
 
@@ -1564,17 +1506,13 @@ uint8_t Cmd32(SdCard *pSd, uint16_t startsector) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 // erase block end
 uint8_t Cmd33(SdCard *pSd, uint16_t endsector) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1586,17 +1524,13 @@ uint8_t Cmd33(SdCard *pSd, uint16_t endsector) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 // erase
 uint8_t Cmd38(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1607,26 +1541,19 @@ uint8_t Cmd38(SdCard *pSd) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 //------------------------------------------------------------------------------
 /// Continously transfers datablocks from card to host until interrupted by a
 /// STOP_TRANSMISSION command.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param blockSize  Block size (shall be set to 512 in case of high capacity).
 /// \param pData  Pointer to the application buffer to be filled.
 /// \param address  SD card address.
 //------------------------------------------------------------------------------
-static uint8_t Cmd17(SdCard *pSd,
-    uint16_t nbBlock,
-    uint8_t *pData,
-    uint32_t address) {
+static uint8_t Cmd17(SdCard *pSd, uint16_t nbBlock, uint8_t *pData, uint32_t address) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1643,27 +1570,20 @@ static uint8_t Cmd17(SdCard *pSd,
     pSd->state = SD_STATE_DATA;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
 /// Continously transfers datablocks from card to host until interrupted by a
 /// STOP_TRANSMISSION command.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param blockSize  Block size (shall be set to 512 in case of high capacity).
 /// \param pData  Pointer to the application buffer to be filled.
 /// \param address  SD card address.
 //------------------------------------------------------------------------------
-static uint8_t Cmd18(SdCard *pSd,
-    uint16_t nbBlock,
-    uint8_t *pData,
-    uint32_t address) {
+static uint8_t Cmd18(SdCard *pSd, uint16_t nbBlock, uint8_t *pData, uint32_t address) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1680,23 +1600,17 @@ static uint8_t Cmd18(SdCard *pSd,
     pSd->state = SD_STATE_DATA;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 //------------------------------------------------------------------------------
 /// Write block command
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param blockSize  Block size (shall be set to 512 in case of high capacity).
 /// \param pData  Pointer to the application buffer to be filled.
 /// \param address  SD card address.
 //------------------------------------------------------------------------------
-static uint8_t Cmd24(SdCard *pSd,
-    uint16_t nbBlock,
-    uint8_t *pData,
-    uint32_t address) {
+static uint8_t Cmd24(SdCard *pSd, uint16_t nbBlock, uint8_t *pData, uint32_t address) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
 
 
@@ -1715,23 +1629,17 @@ static uint8_t Cmd24(SdCard *pSd,
     pSd->state = SD_STATE_RCV;
 
     // Send command
-    //return SendCommand(pSd);
-    error = SendCommand(pSd);
-    return error;
+    return SendCommand(pSd);
 }
 //------------------------------------------------------------------------------
 /// Write block command
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param blockSize  Block size (shall be set to 512 in case of high capacity).
 /// \param pData  Pointer to the application buffer to be filled.
 /// \param address  SD card address.
 //------------------------------------------------------------------------------
-static uint8_t Cmd25(SdCard *pSd,
-    uint16_t nbBlock,
-    uint8_t *pData,
-    uint32_t address) {
+static uint8_t Cmd25(SdCard *pSd, uint16_t nbBlock, uint8_t *pData, uint32_t address) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
 
 
@@ -1750,9 +1658,7 @@ static uint8_t Cmd25(SdCard *pSd,
     pSd->state = SD_STATE_RCV;
 
     // Send command
-    //return SendCommand(pSd);
-    error = SendCommand(pSd);
-    return error;
+    return SendCommand(pSd);
 }
 
 
@@ -1760,13 +1666,11 @@ static uint8_t Cmd25(SdCard *pSd,
 /// Initialization delay: The maximum of 1 msec, 74 clock cycles and supply
 /// ramp up time.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 //------------------------------------------------------------------------------
 static uint8_t Cmd55(SdCard *pSd) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1778,21 +1682,17 @@ static uint8_t Cmd55(SdCard *pSd) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    //return SendCommand(pSd);
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
 /// SPI Mode, Reads the OCR register of a card
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param pOcr   OCR value of the card
 //------------------------------------------------------------------------------
 static uint8_t Cmd58(SdCard *pSd, uint32_t *pOcr) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response[2];
 
 
@@ -1806,21 +1706,18 @@ static uint8_t Cmd58(SdCard *pSd, uint32_t *pOcr) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
 /// SPI Mode, Set CRC option of a card
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param option  CRC option, 1 to turn on, 0 to trun off
 //------------------------------------------------------------------------------
 static uint8_t Cmd59(SdCard *pSd, uint8_t option) {
     SdCmd *pCommand = &(pSd->command);
-    uint8_t error;
     uint32_t response;
-
 
     memset(pCommand, 0, sizeof(SdCmd));
     // Fill command information
@@ -1833,16 +1730,14 @@ static uint8_t Cmd59(SdCard *pSd, uint8_t option) {
     pSd->state = SD_STATE_STBY;
 
     // Send command
-    error = SendCommand(pSd);
-
-    return error;
+    return SendCommand(pSd);
 }
 
 //------------------------------------------------------------------------------
 /// Defines the data bus width (’00’=1bit or ’10’=4 bits bus) to be used for data transfer.
 /// The allowed data bus widths are given in SCR register.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param busWidth  Bus width in bits.
 //------------------------------------------------------------------------------
 static uint8_t Acmd6(SdCard *pSd, uint8_t busWidth) {
@@ -1850,9 +1745,9 @@ static uint8_t Acmd6(SdCard *pSd, uint8_t busWidth) {
     uint8_t error;
     uint32_t response;
 
-
     // Delay
     error = Cmd55(pSd);
+
     if (error) {
         return error;
     }
@@ -1879,7 +1774,7 @@ static uint8_t Acmd6(SdCard *pSd, uint8_t busWidth) {
 //------------------------------------------------------------------------------
 /// Asks to all cards to send their operations conditions.
 /// Returns the command transfer result (see SendCommand).
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param hcs  Shall be true if Host support High capacity.
 /// \param pCCS  Set the pointed flag to 1 if hcs != 0 and SD OCR CCS flag is set.
 //------------------------------------------------------------------------------
@@ -1917,21 +1812,18 @@ static uint8_t Acmd41(SdCard *pSd, uint8_t hcs, uint8_t *pCCS) {
         *pCCS = ((response & AT91C_CCS) != 0);
     } while ((response & AT91C_CARD_POWER_UP_BUSY) != AT91C_CARD_POWER_UP_BUSY);
 
-    return 0;
+    return SD_ERROR_NO_ERROR;
 }
 
 //------------------------------------------------------------------------------
 /// Continue to transfer datablocks from card to host until interrupted by a
 /// STOP_TRANSMISSION command.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param blockSize  Block size (shall be set to 512 in case of high capacity).
 /// \param pData  Pointer to the application buffer to be filled.
 /// \param address  SD card address.
 //------------------------------------------------------------------------------
-static uint8_t ContinuousRead(SdCard *pSd,
-    uint16_t nbBlock,
-    uint8_t *pData,
-    uint32_t address) {
+static uint8_t ContinuousRead(SdCard *pSd, uint16_t nbBlock, uint8_t *pData, uint32_t address) {
     SdCmd *pCommand = &(pSd->command);
 
     memset(pCommand, 0, sizeof(SdCmd));
@@ -1951,15 +1843,12 @@ static uint8_t ContinuousRead(SdCard *pSd,
 //------------------------------------------------------------------------------
 /// Continue to transfer datablocks from host to card until interrupted by a
 /// STOP_TRANSMISSION command.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param blockSize  Block size (shall be set to 512 in case of high capacity).
 /// \param pData  Pointer to the application buffer to be filled.
 /// \param address  SD card address.
 //------------------------------------------------------------------------------
-static uint8_t ContinuousWrite(SdCard *pSd,
-    uint16_t nbBlock,
-    const uint8_t *pData,
-    uint32_t address) {
+static uint8_t ContinuousWrite(SdCard *pSd, uint16_t nbBlock, const uint8_t *pData, uint32_t address) {
     SdCmd *pCommand = &(pSd->command);
 
     memset(pCommand, 0, sizeof(SdCmd));
@@ -1981,7 +1870,7 @@ static uint8_t ContinuousWrite(SdCard *pSd,
 /// least 512 byte long. This function checks the SD card status register and
 /// address the card if required before sending the transfer command.
 /// Returns 0 if successful; otherwise returns an code describing the error.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param address  Address of the block to transfer.
 /// \param nbBlocks Number of blocks to be transfer.
 /// \param pData  Data buffer whose size is at least the block size.
@@ -1989,11 +1878,7 @@ static uint8_t ContinuousWrite(SdCard *pSd,
 //------------------------------------------------------------------------------
 
 
-static uint8_t MoveToTransferState(SdCard *pSd,
-    uint32_t address,
-    uint16_t nbBlocks,
-    uint8_t *pData,
-    uint8_t isRead, int32_t timeout) {
+static uint8_t MoveToTransferState(SdCard *pSd, uint32_t address, uint16_t nbBlocks, uint8_t *pData, uint8_t isRead, int32_t timeout) {
     uint32_t status;
     uint8_t error;
     int32_t trycnt = timeout;
@@ -2024,7 +1909,6 @@ static uint8_t MoveToTransferState(SdCard *pSd,
                 return error;
             }
         }
-
 
         while (((status & STATUS_READY_FOR_DATA) == 0) ||
             ((status & STATUS_STATE) != STATUS_TRAN));
@@ -2064,15 +1948,12 @@ static uint8_t MoveToTransferState(SdCard *pSd,
 /// least 512 byte long. This function checks the SD card status register and
 /// address the card if required before sending the read command.
 /// Returns 0 if successful; otherwise returns an code describing the error.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param address  Address of the block to read.
 /// \param nbBlocks Number of blocks to be read.
 /// \param pData  Data buffer whose size is at least the block size.
 //------------------------------------------------------------------------------
-uint8_t SD_ReadBlock(SdCard *pSd,
-    uint32_t address,
-    uint16_t nbBlocks,
-    uint8_t *pData, int32_t timeout) {
+uint8_t SD_ReadBlock(SdCard *pSd, uint32_t address, uint16_t nbBlocks, uint8_t *pData, int32_t timeout) {
     return MoveToTransferState(pSd, address, nbBlocks, pData, 1, timeout);;
 }
 
@@ -2081,15 +1962,12 @@ uint8_t SD_ReadBlock(SdCard *pSd,
 /// least 512 byte long. This function checks the SD card status register and
 /// address the card if required before sending the read command.
 /// Returns 0 if successful; otherwise returns an SD_ERROR code.
-/// \param pSd  Pointer to a SD card driver instance.
+/// \param pSd  Pointer to a SD card state instance.
 /// \param address  Address of block to write.
 /// \param nbBlocks Number of blocks to be read
 /// \param pData  Pointer to a 512 bytes buffer to be transfered
 //------------------------------------------------------------------------------
-uint8_t SD_WriteBlock(SdCard *pSd,
-    uint32_t address,
-    uint16_t nbBlocks,
-    const uint8_t *pData, int32_t timeout) {
+uint8_t SD_WriteBlock(SdCard *pSd, uint32_t address, uint16_t nbBlocks, const uint8_t *pData, int32_t timeout) {
     return MoveToTransferState(pSd, address, nbBlocks,
         (uint8_t *)pData, 0, timeout);
 }
@@ -2099,8 +1977,8 @@ uint8_t SD_WriteBlock(SdCard *pSd,
 /// initialisation procedure and the identification process, then it sets the
 /// SD card in transfer state to set the block length and the bus width.
 /// Returns 0 if successful; otherwise returns an SD_ERROR code.
-/// \param pSd  Pointer to a SD card driver instance.
-/// \param pSdDriver  Pointer to SD driver already initialized
+/// \param pSd  Pointer to a SD card state instance.
+/// \param pSdDriver  Pointer to SD state already initialized
 //------------------------------------------------------------------------------
 
 bool SD_ReadyToTransfer(SdCard *pSd, int32_t timeout) {
@@ -2239,7 +2117,7 @@ uint8_t SD_MCI_Init(SdCard *pSd, SdDriver *pSdDriver) {
     else {
         MCI_SetBusWidth((Mci *)pSdDriver, MCI_SDCBUS_1BIT);
     }
-    return 0;
+    return SD_ERROR_NO_ERROR;
 }
 
 //------------------------------------------------------------------------------
@@ -2247,8 +2125,8 @@ uint8_t SD_MCI_Init(SdCard *pSd, SdDriver *pSdDriver) {
 /// initialisation procedure and the identification process, then it sets the SD
 /// card in transfer state to set the block length.
 /// Returns 0 if successful; otherwise returns an SD_ERROR code.
-/// \param pSd  Pointer to a SD card driver instance.
-/// \param pSdDriver  Pointer to SD driver already initialized.
+/// \param pSd  Pointer to a SD card state instance.
+/// \param pSdDriver  Pointer to SD state already initialized.
 //------------------------------------------------------------------------------
 uint8_t SD_SPI_Init(SdCard *pSd, SdDriver *pSpi) {
     uint8_t isCCSet;
@@ -2356,7 +2234,8 @@ uint8_t SD_SPI_Init(SdCard *pSd, SdDriver *pSpi) {
     if (error) {
         return error;
     }
-    return 0;
+
+    return SD_ERROR_NO_ERROR;
 }
 //
 
@@ -2365,8 +2244,8 @@ uint8_t SD_SPI_Init(SdCard *pSd, SdDriver *pSpi) {
 /// procedure and the identification process, then it sets the SD card in transfer
 /// state to set the block length and the bus width.
 /// Returns 0 if successful; otherwise returns an SD_ERROR code.
-/// \param pSd  Pointer to a SD card driver instance.
-/// \param pSdDriver  Pointer to SD driver already initialized.
+/// \param pSd  Pointer to a SD card state instance.
+/// \param pSdDriver  Pointer to SD state already initialized.
 //------------------------------------------------------------------------------
 uint8_t SD_Init(SdCard *pSd, SdDriver *pSdDriver) {
     uint8_t error;
@@ -2393,7 +2272,7 @@ uint8_t SD_Init(SdCard *pSd, SdDriver *pSdDriver) {
 
     // After power-on or CMD0, all cards’ CMD lines are in input mode, waiting for start bit of the next command.
     // The cards are initialized with a default relative card address (RCA=0x0000) and with a default
-    // driver stage register setting (lowest speed, highest driving current capability).
+    // state stage register setting (lowest speed, highest driving current capability).
 
     error = SD_MCI_Init(pSd, pSdDriver);
 
@@ -2432,15 +2311,15 @@ uint8_t SD_Init(SdCard *pSd, SdDriver *pSdDriver) {
         return SD_ERROR_NOT_INITIALIZED;
     }
     else {
-        return 0;
+        return SD_ERROR_NO_ERROR;
     }
 }
 
 //------------------------------------------------------------------------------
 /// Stop the SDcard. This function stops all SD operations.
 /// Returns 0 if successful; otherwise returns an SD_ERROR code.
-/// \param pSd  Pointer to a SD card driver instance.
-/// \param pSdDriver  Pointer to MCI driver already initialized.
+/// \param pSd  Pointer to a SD card state instance.
+/// \param pSdDriver  Pointer to MCI state already initialized.
 //------------------------------------------------------------------------------
 uint8_t SD_Stop(SdCard *pSd, SdDriver *pSdDriver) {
     uint8_t error;
@@ -2455,165 +2334,212 @@ uint8_t SD_Stop(SdCard *pSd, SdDriver *pSdDriver) {
 
     MCI_Close((Mci *)pSdDriver);
 
-    return 0;
+    return SD_ERROR_NO_ERROR;
 }
 
 //AT91
-static TinyCLR_SdCard_Provider sdCardProvider;
-static TinyCLR_Api_Info sdApi;
+#define TOTAL_SDCARD_CONTROLLERS 1
+
+static TinyCLR_Storage_Controller sdCardControllers[TOTAL_SDCARD_CONTROLLERS];
+static TinyCLR_Api_Info sdCardApi[TOTAL_SDCARD_CONTROLLERS];
 
 #define AT91_SD_SECTOR_SIZE 512
 #define AT91_SD_TIMEOUT 5000000
 
-struct SdController {
-    int32_t controller;
-    size_t  sectorCount;
+struct SdCardState {
+    int32_t controllerIndex;
 
-    size_t  *sectorSizes;
+    uint64_t *regionAddresses;
+    size_t  *regionSizes;
     uint8_t *pBuffer;
     uint8_t *pBufferAligned;
+
+    TinyCLR_Storage_Descriptor descriptor;
+
+    bool isOpened = false;
+
+    uint16_t initializeCount;
 };
 
-static const AT91_Gpio_Pin g_AT91_SdCard_Data0_Pins[] = AT91_SD_DATA0_PINS;
-static const AT91_Gpio_Pin g_AT91_SdCard_Data1_Pins[] = AT91_SD_DATA1_PINS;
-static const AT91_Gpio_Pin g_AT91_SdCard_Data2_Pins[] = AT91_SD_DATA2_PINS;
-static const AT91_Gpio_Pin g_AT91_SdCard_Data3_Pins[] = AT91_SD_DATA3_PINS;
-static const AT91_Gpio_Pin g_AT91_SdCard_Clk_Pins[] = AT91_SD_CLK_PINS;
-static const AT91_Gpio_Pin g_AT91_SdCard_Cmd_Pins[] = AT91_SD_CMD_PINS;
+static const AT91_Gpio_Pin sdCardData0Pins[] = AT91_SD_DATA0_PINS;
+static const AT91_Gpio_Pin sdCardData1Pins[] = AT91_SD_DATA1_PINS;
+static const AT91_Gpio_Pin sdCardData2Pins[] = AT91_SD_DATA2_PINS;
+static const AT91_Gpio_Pin sdCardData3Pins[] = AT91_SD_DATA3_PINS;
+static const AT91_Gpio_Pin sdCardClkPins[] = AT91_SD_CLK_PINS;
+static const AT91_Gpio_Pin sdCardCmdPins[] = AT91_SD_CMD_PINS;
 
-SdController sdController[1];
+static SdCardState sdCardStates[TOTAL_SDCARD_CONTROLLERS];
 
-/// MCI driver instance.
+/// MCI state instance.
 static Mci mciDrv;
 
-/// SDCard driver instance.
+/// SDCard state instance.
 static SdCard sdDrv;
 
-const TinyCLR_Api_Info* AT91_SdCard_GetApi() {
-    sdCardProvider.Parent = &sdApi;
+const char* sdCardApiNames[TOTAL_SDCARD_CONTROLLERS] = {
+    "GHIElectronics.TinyCLR.NativeApis.AT91.SdCardStorageController\\0"
+};
 
-    sdCardProvider.Acquire = &AT91_SdCard_Acquire;
-    sdCardProvider.Release = &AT91_SdCard_Release;
-    sdCardProvider.GetControllerCount = &AT91_SdCard_GetControllerCount;
+void AT91_SdCard_AddApi(const TinyCLR_Api_Manager* apiManager) {
+    for (auto i = 0; i < TOTAL_SDCARD_CONTROLLERS; i++) {
+        sdCardControllers[i].ApiInfo = &sdCardApi[i];
+        sdCardControllers[i].Acquire = &AT91_SdCard_Acquire;
+        sdCardControllers[i].Release = &AT91_SdCard_Release;
+        sdCardControllers[i].Open = &AT91_SdCard_Open;
+        sdCardControllers[i].Close = &AT91_SdCard_Close;
+        sdCardControllers[i].Write = &AT91_SdCard_Write;
+        sdCardControllers[i].Read = &AT91_SdCard_Read;
+        sdCardControllers[i].Erase = &AT91_SdCard_Erases;
+        sdCardControllers[i].IsErased = &AT91_SdCard_IsErased;
+        sdCardControllers[i].GetDescriptor = &AT91_SdCard_GetDescriptor;
+        sdCardControllers[i].IsPresent = &AT91_SdCard_IsPresent;
+        sdCardControllers[i].SetPresenceChangedHandler = &AT91_SdCard_SetPresenceChangedHandler;
 
-    sdCardProvider.WriteSectors = &AT91_SdCard_WriteSector;
-    sdCardProvider.ReadSectors = &AT91_SdCard_ReadSector;
-    sdCardProvider.EraseSectors = &AT91_SdCard_EraseSector;
-    sdCardProvider.IsSectorErased = &AT91_SdCard_IsSectorErased;
-    sdCardProvider.GetSectorMap = &AT91_SdCard_GetSectorMap;
+        sdCardApi[i].Author = "GHI Electronics, LLC";
+        sdCardApi[i].Name = sdCardApiNames[i];
+        sdCardApi[i].Type = TinyCLR_Api_Type::StorageController;
+        sdCardApi[i].Version = 0;
+        sdCardApi[i].Implementation = &sdCardControllers[i];
+        sdCardApi[i].State = &sdCardStates[i];
 
-    sdApi.Author = "GHI Electronics, LLC";
-    sdApi.Name = "GHIElectronics.TinyCLR.NativeApis.AT91.SdCardProvider";
-    sdApi.Type = TinyCLR_Api_Type::SdCardProvider;
-    sdApi.Version = 0;
-    sdApi.Implementation = &sdCardProvider;
+        sdCardStates[i].controllerIndex = i;
 
-    return &sdApi;
-}
-
-TinyCLR_Result AT91_SdCard_Acquire(const TinyCLR_SdCard_Provider* self, int32_t controller) {
-    sdController[controller].controller = controller;
-
-    auto d0 = g_AT91_SdCard_Data0_Pins[controller];
-    auto d1 = g_AT91_SdCard_Data1_Pins[controller];
-    auto d2 = g_AT91_SdCard_Data2_Pins[controller];
-    auto d3 = g_AT91_SdCard_Data3_Pins[controller];
-    auto clk = g_AT91_SdCard_Clk_Pins[controller];
-    auto cmd = g_AT91_SdCard_Cmd_Pins[controller];
-
-    if (!AT91_Gpio_OpenPin(d0.number)
-        || !AT91_Gpio_OpenPin(d1.number)
-        || !AT91_Gpio_OpenPin(d2.number)
-        || !AT91_Gpio_OpenPin(d3.number)
-        || !AT91_Gpio_OpenPin(clk.number)
-        || !AT91_Gpio_OpenPin(cmd.number)
-        )
-        return TinyCLR_Result::SharingViolation;
-
-    AT91_Gpio_ConfigurePin(d0.number, AT91_Gpio_Direction::Input, d0.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
-    AT91_Gpio_ConfigurePin(d1.number, AT91_Gpio_Direction::Input, d1.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
-    AT91_Gpio_ConfigurePin(d2.number, AT91_Gpio_Direction::Input, d2.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
-    AT91_Gpio_ConfigurePin(d3.number, AT91_Gpio_Direction::Input, d3.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
-    AT91_Gpio_ConfigurePin(clk.number, AT91_Gpio_Direction::Input, clk.peripheralSelection, AT91_Gpio_ResistorMode::Inactive);
-    AT91_Gpio_ConfigurePin(cmd.number, AT91_Gpio_Direction::Input, cmd.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
-
-    AT91_PMC &pmc = AT91::PMC();
-    pmc.EnablePeriphClock(AT91C_ID_HSMCI0);
-
-    DMA_Init();
-
-    MCI_Init(&mciDrv, (AT91PS_MCI)AT91C_BASE_MCI, AT91C_ID_HSMCI0, MCI_SD_SLOTA);
-
-    AT91_Interrupt_Activate(AT91C_ID_HSMCI0, (uint32_t*)&MCI_Handler, (void*)&mciDrv);
-
-    if (SD_Init(&sdDrv, (SdDriver *)&mciDrv)) {
-
-        return TinyCLR_Result::InvalidOperation;
+        apiManager->Add(apiManager, &sdCardApi[i]);
     }
 
-    MCI_SetSpeed(&mciDrv, 8000000);
+    apiManager->SetDefaultName(apiManager, TinyCLR_Api_Type::StorageController, sdCardApi[0].Name);
+}
+TinyCLR_Result AT91_SdCard_Acquire(const TinyCLR_Storage_Controller* self) {
+    auto state = reinterpret_cast<SdCardState*>(self->ApiInfo->State);
 
-    auto memoryProvider = (const TinyCLR_Memory_Provider*)apiProvider->FindDefault(apiProvider, TinyCLR_Api_Type::MemoryProvider);
+    if (state->initializeCount == 0) {
 
-    sdController[controller].pBuffer = (uint8_t*)memoryProvider->Allocate(memoryProvider, AT91_SD_SECTOR_SIZE + 4);
+        auto controllerIndex = state->controllerIndex;
 
-    uint32_t alignAddress = (uint32_t)sdController[controller].pBuffer;
+        auto d0 = sdCardData0Pins[controllerIndex];
+        auto d1 = sdCardData1Pins[controllerIndex];
+        auto d2 = sdCardData2Pins[controllerIndex];
+        auto d3 = sdCardData3Pins[controllerIndex];
+        auto clk = sdCardClkPins[controllerIndex];
+        auto cmd = sdCardCmdPins[controllerIndex];
 
-    while (alignAddress % 4 > 0) {
-        alignAddress++;
+        if (!AT91_Gpio_OpenPin(d0.number)
+            || !AT91_Gpio_OpenPin(d1.number)
+            || !AT91_Gpio_OpenPin(d2.number)
+            || !AT91_Gpio_OpenPin(d3.number)
+            || !AT91_Gpio_OpenPin(clk.number)
+            || !AT91_Gpio_OpenPin(cmd.number)
+            )
+            return TinyCLR_Result::SharingViolation;
+
+        AT91_Gpio_ConfigurePin(d0.number, AT91_Gpio_Direction::Input, d0.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
+        AT91_Gpio_ConfigurePin(d1.number, AT91_Gpio_Direction::Input, d1.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
+        AT91_Gpio_ConfigurePin(d2.number, AT91_Gpio_Direction::Input, d2.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
+        AT91_Gpio_ConfigurePin(d3.number, AT91_Gpio_Direction::Input, d3.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
+        AT91_Gpio_ConfigurePin(clk.number, AT91_Gpio_Direction::Input, clk.peripheralSelection, AT91_Gpio_ResistorMode::Inactive);
+        AT91_Gpio_ConfigurePin(cmd.number, AT91_Gpio_Direction::Input, cmd.peripheralSelection, AT91_Gpio_ResistorMode::PullUp);
+
+        AT91_PMC &pmc = AT91::PMC();
+        pmc.EnablePeriphClock(AT91C_ID_HSMCI0);
+
+        DMA_Init();
+
+        MCI_Init(&mciDrv, (AT91PS_MCI)AT91C_BASE_MCI, AT91C_ID_HSMCI0, MCI_SD_SLOTA);
+
+        AT91_Interrupt_Activate(AT91C_ID_HSMCI0, (uint32_t*)&MCI_Handler, (void*)&mciDrv);
+
+        if (SD_Init(&sdDrv, (SdDriver *)&mciDrv) != SD_ERROR_NO_ERROR) {
+
+            return TinyCLR_Result::InvalidOperation;
+        }
+
+        MCI_SetSpeed(&mciDrv, 8000000);
+
+        auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
+
+        state->pBuffer = (uint8_t*)memoryProvider->Allocate(memoryProvider, AT91_SD_SECTOR_SIZE + 4);
+
+        uint32_t alignAddress = (uint32_t)state->pBuffer;
+
+        while (alignAddress % 4 > 0) {
+            alignAddress++;
+        }
+
+        state->pBufferAligned = (uint8_t*)alignAddress;
+
+        state->regionAddresses = (uint64_t*)memoryProvider->Allocate(memoryProvider, sizeof(uint64_t));
+        state->regionSizes = (size_t*)memoryProvider->Allocate(memoryProvider, sizeof(size_t));
+
+        state->descriptor.CanReadDirect = true;
+        state->descriptor.CanWriteDirect = true;
+        state->descriptor.CanExecuteDirect = false;
+        state->descriptor.EraseBeforeWrite = false;
+        state->descriptor.Removable = true;
+        state->descriptor.RegionsRepeat = true;
+
+        state->descriptor.RegionAddresses = reinterpret_cast<const uint64_t*>(state->regionAddresses);
+        state->descriptor.RegionSizes = reinterpret_cast<const size_t*>(state->regionSizes);
+
+        state->isOpened = true;
     }
 
-    sdController[controller].pBufferAligned = (uint8_t*)alignAddress;
-
-    sdController[controller].sectorSizes = (size_t*)memoryProvider->Allocate(memoryProvider, sizeof(size_t));
+    state->initializeCount++;
 
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_SdCard_Release(const TinyCLR_SdCard_Provider* self, int32_t controller) {
-    auto d0 = g_AT91_SdCard_Data0_Pins[controller];
-    auto d1 = g_AT91_SdCard_Data1_Pins[controller];
-    auto d2 = g_AT91_SdCard_Data2_Pins[controller];
-    auto d3 = g_AT91_SdCard_Data3_Pins[controller];
-    auto clk = g_AT91_SdCard_Clk_Pins[controller];
-    auto cmd = g_AT91_SdCard_Cmd_Pins[controller];
+TinyCLR_Result AT91_SdCard_Release(const TinyCLR_Storage_Controller* self) {
+    auto state = reinterpret_cast<SdCardState*>(self->ApiInfo->State);
 
-    AT91_PMC &pmc = AT91::PMC();
+    if (state->initializeCount == 0) return TinyCLR_Result::InvalidOperation;
 
-    pmc.DisablePeriphClock(AT91C_ID_HSMCI0); /* Disable clock to the Mci block */
-    pmc.DisablePeriphClock(AT91C_ID_DMAC0); /* Disable clock to the Dma block */
+    state->initializeCount--;
 
-    AT91_Interrupt_Deactivate(AT91C_ID_HSMCI0); /* Disable Interrupt */
+    if (state->initializeCount == 0) {
+        auto controllerIndex = state->controllerIndex;
 
-    auto memoryProvider = (const TinyCLR_Memory_Provider*)apiProvider->FindDefault(apiProvider, TinyCLR_Api_Type::MemoryProvider);
+        auto d0 = sdCardData0Pins[controllerIndex];
+        auto d1 = sdCardData1Pins[controllerIndex];
+        auto d2 = sdCardData2Pins[controllerIndex];
+        auto d3 = sdCardData3Pins[controllerIndex];
+        auto clk = sdCardClkPins[controllerIndex];
+        auto cmd = sdCardCmdPins[controllerIndex];
 
-    memoryProvider->Free(memoryProvider, sdController[controller].pBuffer);
-    memoryProvider->Free(memoryProvider, sdController[controller].sectorSizes);
+        AT91_PMC &pmc = AT91::PMC();
 
-    AT91_Gpio_ClosePin(d0.number);
-    AT91_Gpio_ClosePin(d1.number);
-    AT91_Gpio_ClosePin(d2.number);
-    AT91_Gpio_ClosePin(d3.number);
-    AT91_Gpio_ClosePin(clk.number);
-    AT91_Gpio_ClosePin(cmd.number);
+        pmc.DisablePeriphClock(AT91C_ID_HSMCI0); /* Disable clock to the Mci block */
+        pmc.DisablePeriphClock(AT91C_ID_DMAC0); /* Disable clock to the Dma block */
+
+        AT91_Interrupt_Deactivate(AT91C_ID_HSMCI0); /* Disable Interrupt */
+
+        if (state->isOpened) {
+            auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
+
+            memoryProvider->Free(memoryProvider, state->pBuffer);
+            memoryProvider->Free(memoryProvider, state->regionSizes);
+            memoryProvider->Free(memoryProvider, state->regionAddresses);
+        }
+
+        AT91_Gpio_ClosePin(d0.number);
+        AT91_Gpio_ClosePin(d1.number);
+        AT91_Gpio_ClosePin(d2.number);
+        AT91_Gpio_ClosePin(d3.number);
+        AT91_Gpio_ClosePin(clk.number);
+        AT91_Gpio_ClosePin(cmd.number);
+
+        state->isOpened = false;
+    }
 
     return TinyCLR_Result::Success;
 
-    return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_SdCard_GetControllerCount(const TinyCLR_SdCard_Provider* self, int32_t& count) {
-    count = SIZEOF_ARRAY(g_AT91_SdCard_Data0_Pins);
-
-    return TinyCLR_Result::Success;
-}
-
-TinyCLR_Result AT91_SdCard_WriteSector(const TinyCLR_SdCard_Provider* self, int32_t controller, uint64_t sector, size_t& count, const uint8_t* data, int32_t timeout) {
+TinyCLR_Result AT91_SdCard_Write(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, const uint8_t* data, uint64_t timeout) {
     int32_t to;
 
     int32_t sectorCount = count;
 
-    int32_t sectorNum = sector;
+    auto sectorNum = address;
 
     SdCard *pSd = &sdDrv;
 
@@ -2625,9 +2551,15 @@ TinyCLR_Result AT91_SdCard_WriteSector(const TinyCLR_SdCard_Provider* self, int3
 
     volatile uint32_t error = 0;
 
-    uint32_t status;
+    volatile uint32_t status;
+
+    auto state = reinterpret_cast<SdCardState*>(self->ApiInfo->State);
+
+    auto controllerIndex = state->controllerIndex;
 
     while (sectorCount > 0) {
+        memcpy(state->pBufferAligned, pData, AT91_SD_SECTOR_SIZE);
+
         AT91_Cache_DisableCaches();
 
         if (SD_ReadyToTransfer(pSd, timeout) == false) {
@@ -2636,9 +2568,7 @@ TinyCLR_Result AT91_SdCard_WriteSector(const TinyCLR_SdCard_Provider* self, int3
 
         to = timeout;
 
-        memcpy(sdController[controller].pBufferAligned, pData, AT91_SD_SECTOR_SIZE);
-
-        if ((error = SD_WriteBlock(&sdDrv, sectorNum, 1, sdController[controller].pBufferAligned, timeout)) == 0) {
+        if ((error = SD_WriteBlock(&sdDrv, sectorNum, 1, state->pBufferAligned, timeout)) == SD_ERROR_NO_ERROR) {
             to = timeout;
 
             while (to > 0 && (((status & AT91C_MCI_DMADONE) != AT91C_MCI_DMADONE) || ((status & AT91C_MCI_XFRDONE) != AT91C_MCI_XFRDONE) || ((status & AT91C_MCI_BLKE) != AT91C_MCI_BLKE))) {
@@ -2646,13 +2576,7 @@ TinyCLR_Result AT91_SdCard_WriteSector(const TinyCLR_SdCard_Provider* self, int3
                 to--;
                 status |= READ_MCI(pMciHw, MCI_SR);
             }
-
-            pData += AT91_SD_SECTOR_SIZE;
-            sectorNum++;
-            sectorCount--;
         }
-
-        DMA_DiableChannel();
 
         AT91_Cache_EnableCaches();
 
@@ -2663,17 +2587,21 @@ TinyCLR_Result AT91_SdCard_WriteSector(const TinyCLR_SdCard_Provider* self, int3
         if (!to) {
             return TinyCLR_Result::TimedOut;
         }
+
+        pData += AT91_SD_SECTOR_SIZE;
+        sectorNum++;
+        sectorCount--;
     }
 
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_SdCard_ReadSector(const TinyCLR_SdCard_Provider* self, int32_t controller, uint64_t sector, size_t& count, uint8_t* data, int32_t timeout) {
+TinyCLR_Result AT91_SdCard_Read(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint8_t* data, uint64_t timeout) {
     int32_t to;
 
     int32_t sectorCount = count;
 
-    int32_t sectorNum = sector;
+    auto sectorNum = address;
 
     SdCard *pSd = &sdDrv;
 
@@ -2683,11 +2611,17 @@ TinyCLR_Result AT91_SdCard_ReadSector(const TinyCLR_SdCard_Provider* self, int32
 
     volatile uint32_t error = 0;
 
-    uint32_t status;
+    volatile  uint32_t status;
 
     uint8_t* pData = (uint8_t*)data;
 
+    auto state = reinterpret_cast<SdCardState*>(self->ApiInfo->State);
+
+    auto controllerIndex = state->controllerIndex;
+
     while (sectorCount > 0) {
+        memset(state->pBufferAligned, 0, AT91_SD_SECTOR_SIZE);
+
         AT91_Cache_DisableCaches();
 
         if (SD_ReadyToTransfer(pSd, timeout) == false) {
@@ -2697,9 +2631,7 @@ TinyCLR_Result AT91_SdCard_ReadSector(const TinyCLR_SdCard_Provider* self, int32
         status = 0;
         to = timeout;
 
-        memset(sdController[controller].pBufferAligned, 0, AT91_SD_SECTOR_SIZE);
-
-        if ((error = SD_ReadBlock(&sdDrv, sectorNum, 1, sdController[controller].pBufferAligned, timeout)) == 0) {
+        if ((error = SD_ReadBlock(&sdDrv, sectorNum, 1, state->pBufferAligned, timeout)) == SD_ERROR_NO_ERROR) {
             to = timeout;
 
             while (to > 0 && (((status & AT91C_MCI_DMADONE) != AT91C_MCI_DMADONE) || ((status & AT91C_MCI_XFRDONE) != AT91C_MCI_XFRDONE))) {
@@ -2707,15 +2639,7 @@ TinyCLR_Result AT91_SdCard_ReadSector(const TinyCLR_SdCard_Provider* self, int32
                 to--;
                 status |= READ_MCI(pMciHw, MCI_SR);
             }
-
-            memcpy(pData, sdController[controller].pBufferAligned, AT91_SD_SECTOR_SIZE);
-
-            pData += AT91_SD_SECTOR_SIZE;
-            sectorNum++;
-            sectorCount--;
         }
-
-        DMA_DiableChannel();
 
         AT91_Cache_EnableCaches();
 
@@ -2726,26 +2650,30 @@ TinyCLR_Result AT91_SdCard_ReadSector(const TinyCLR_SdCard_Provider* self, int32
         if (!to) {
             return TinyCLR_Result::TimedOut;
         }
+
+        memcpy(pData, state->pBufferAligned, AT91_SD_SECTOR_SIZE);
+
+        pData += AT91_SD_SECTOR_SIZE;
+        sectorNum++;
+        sectorCount--;
     }
 
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_SdCard_IsSectorErased(const TinyCLR_SdCard_Provider* self, int32_t controller, uint64_t sector, bool& erased) {
+TinyCLR_Result AT91_SdCard_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased) {
     erased = true;
-    return TinyCLR_Result::Success;
-}
-
-TinyCLR_Result AT91_SdCard_EraseSector(const TinyCLR_SdCard_Provider* self, int32_t controller, uint64_t sector, size_t& count, int32_t timeout) {
-    uint32_t addressStart = sector * AT91_SD_SECTOR_SIZE;
-
-    uint32_t addressEnd = addressStart + (count * AT91_SD_SECTOR_SIZE);
 
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_SdCard_GetSectorMap(const TinyCLR_SdCard_Provider* self, int32_t controller, const size_t*& sizes, size_t& count, bool& isUniform) {
-    sdController[controller].sectorSizes[0] = AT91_SD_SECTOR_SIZE;
+TinyCLR_Result AT91_SdCard_Erases(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint64_t timeout) {
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_SdCard_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor) {
+    auto state = reinterpret_cast<SdCardState*>(self->ApiInfo->State);
+
 
     uint8_t C_SIZE_MULT = 0;
 
@@ -2786,13 +2714,39 @@ TinyCLR_Result AT91_SdCard_GetSectorMap(const TinyCLR_SdCard_Provider* self, int
         MemCapacity = (uint64_t)(C_SIZE + 1) * 512 * 1024;
     }
 
-    sizes = sdController[controller].sectorSizes;
-    count = MemCapacity / AT91_SD_SECTOR_SIZE;
+    state->regionSizes[0] = AT91_SD_SECTOR_SIZE;
+    state->descriptor.RegionCount = MemCapacity / AT91_SD_SECTOR_SIZE;
+
+    descriptor = reinterpret_cast<const TinyCLR_Storage_Descriptor*>(&state->descriptor);
+
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_SdCard_Open(const TinyCLR_Storage_Controller* self) {
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_SdCard_Close(const TinyCLR_Storage_Controller* self) {
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_SdCard_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler) {
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result AT91_SdCard_IsPresent(const TinyCLR_Storage_Controller* self, bool& present) {
+    present = true;
 
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result AT91_SdCard_Reset() {
+    for (auto i = 0; i < TOTAL_SDCARD_CONTROLLERS; i++) {
+        AT91_SdCard_Close(&sdCardControllers[i]);
+        AT91_SdCard_Release(&sdCardControllers[i]);
+        sdCardStates[i].initializeCount = 0;
+    }
+
     return TinyCLR_Result::Success;
 }
 #endif // INCLUDE_SD

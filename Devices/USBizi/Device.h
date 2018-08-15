@@ -17,7 +17,7 @@
 #define DEVICE_TARGET LPC24
 #define DEVICE_NAME "USBizi"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((0ULL << 48) | (12ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((1ULL << 48) | (0ULL << 32) | (0ULL << 16) | (10000ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5002
@@ -53,6 +53,7 @@
 #define LPC2387_ADC_PINS { { PIN(0,23), PF(1) }, { PIN(0,24), PF(1) }, { PIN(0,25), PF(1) }, { PIN(0,26), PF(1) }, { PIN(1,30), PF(3) }, { PIN(1,31), PF(3) } }
 
 #define INCLUDE_CAN
+#define TOTAL_CAN_CONTROLLERS 2
 #define LPC24_CAN_BUFFER_DEFAULT_SIZE { 128, 128 }
 #define LPC24_CAN_TX_PINS { { PIN(0, 1), PF(1) }, { PIN(0, 5), PF(2) } }
 #define LPC24_CAN_RX_PINS { { PIN(0, 0), PF(1) }, { PIN(0, 4), PF(2) } }
@@ -61,13 +62,18 @@
 #define LPC24_DAC_PINS { { PIN(0,26), PF(2)} }
 
 #define INCLUDE_I2C
+#define TOTAL_I2C_CONTROLLERS 1
 #define LPC24_I2C_SCL_PINS { { PIN(0, 28), PF(1) } }
 #define LPC24_I2C_SDA_PINS { { PIN(0, 27), PF(1) } }
 
+#define INCLUDE_POWER
+
 #define INCLUDE_PWM
-#define TOTAL_PWM_CONTROLLER 1
+#define TOTAL_PWM_CONTROLLERS 1
 #define MAX_PWM_PER_CONTROLLER 6
 #define LPC24_PWM_PINS  { { PIN(1, 18), PF(2) }, { PIN(1, 20), PF(2) }, { PIN(1, 21), PF(2) }, { PIN(2, 3), PF(1) }, { PIN(2, 4), PF(1) }, { PIN(2, 5), PF(1) } }
+
+#define INCLUDE_SIGNALS
 
 #define INCLUDE_SPI
 #define TOTAL_SPI_CONTROLLERS 2
@@ -76,6 +82,8 @@
 #define LPC24_SPI_MOSI_PINS { { PIN(0, 18), PF(2) }, { PIN(0,  9), PF(2) } }
 
 #define LPC24_TIME_DEFAULT_CONTROLLER_ID 0
+
+#define INCLUDE_STORAGE
 
 #define INCLUDE_UART
 #define TOTAL_UART_CONTROLLERS 4
