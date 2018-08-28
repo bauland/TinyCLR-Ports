@@ -21,7 +21,7 @@
 #define DEVICE_TARGET STM32F4
 #define DEVICE_NAME "netduino3"
 #define DEVICE_MANUFACTURER "Wilderness Labs"
-#define DEVICE_VERSION ((0ULL << 48) | (10ULL << 32) | (0ULL << 16) | (0ULL << 0))
+#define DEVICE_VERSION ((1ULL << 48) | (0ULL << 32) | (0ULL << 16) | (10000ULL << 0))
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5000
@@ -29,11 +29,11 @@
 #define UART_DEBUGGER_INDEX 0
 #define USB_DEBUGGER_INDEX 0
 
-#define DEBUGGER_SELECTOR_PIN PIN(D, 0)
+#define DEBUGGER_SELECTOR_PIN PIN(E, 15)
 #define DEBUGGER_SELECTOR_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define DEBUGGER_SELECTOR_USB_STATE TinyCLR_Gpio_PinValue::High
 
-#define RUN_APP_PIN PIN(D, 1)
+#define RUN_APP_PIN PIN(E, 4)
 #define RUN_APP_PULL TinyCLR_Gpio_PinDriveMode::InputPullUp
 #define RUN_APP_STATE TinyCLR_Gpio_PinValue::High
 
@@ -92,6 +92,15 @@
                          }
 
 #define INCLUDE_RTC
+
+#define INCLUDE_SD
+#define STM32F4_SD_DATA0_PINS { { PIN(C, 8), AF(12) } }
+#define STM32F4_SD_DATA1_PINS { { PIN(C, 9), AF(12) } }
+#define STM32F4_SD_DATA2_PINS { { PIN(C, 10), AF(12) } }
+#define STM32F4_SD_DATA3_PINS { { PIN(C, 11), AF(12) } }
+#define STM32F4_SD_CLK_PINS { { PIN(C, 12), AF(12) } }
+#define STM32F4_SD_CMD_PINS { { PIN(D, 2), AF(12) } }
+
 #define INCLUDE_SIGNALS
 
 #define INCLUDE_SPI
@@ -113,7 +122,7 @@
 
 #define INCLUDE_USBCLIENT
 #define STM32F4_TOTAL_USB_CONTROLLERS 1
-#define STM32F4_USB_PACKET_FIFO_COUNT 32
+#define STM32F4_USB_PACKET_FIFO_COUNT 64
 #define STM32F4_USB_ENDPOINT_SIZE 64
 #define STM32F4_USB_ENDPOINT0_SIZE 8
 #define STM32F4_USB_ENDPOINT_COUNT 4
