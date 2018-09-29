@@ -21,7 +21,8 @@
 #define DEVICE_TARGET STM32F4
 #define DEVICE_NAME "netduino3"
 #define DEVICE_MANUFACTURER "Wilderness Labs"
-#define DEVICE_VERSION ((1ULL << 48) | (0ULL << 32) | (0ULL << 16) | (10000ULL << 0))
+#define DEVICE_VERSION ((1ULL << 48) | (0ULL << 32) | (0ULL << 16) | (10001ULL << 0))
+#define DEVICE_MEMORY_PROFILE_FACTOR 5
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
 #define USB_DEBUGGER_PRODUCT_ID 0x5000
