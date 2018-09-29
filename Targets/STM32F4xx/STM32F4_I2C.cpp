@@ -93,16 +93,17 @@ void STM32F4_I2c_AddApi(const TinyCLR_Api_Manager* apiManager) {
         apiManager->Add(apiManager, &i2cApi[i]);
     }
 
-    if (TOTAL_I2C_CONTROLLERS > 0)
+#if TOTAL_I2C_CONTROLLERS > 0
         i2cPorts[0] = I2C1;
 
-    if (TOTAL_I2C_CONTROLLERS > 1)
+#if TOTAL_I2C_CONTROLLERS > 1
         i2cPorts[1] = I2C2;
 
-    if (TOTAL_I2C_CONTROLLERS > 2)
+#if TOTAL_I2C_CONTROLLERS > 2
         i2cPorts[2] = I2C3;
-
-
+#endif
+#endif
+#endif
 }
 
 void STM32F4_I2C_ER_Interrupt(int32_t controllerIndex) {// Error Interrupt Handler
@@ -329,7 +330,10 @@ TinyCLR_Result STM32F4_I2c_WriteRead(const TinyCLR_I2c_Controller* self, const u
     return timeout > 0 ? TinyCLR_Result::Success : TinyCLR_Result::TimedOut;
 }
 
-TinyCLR_Result STM32F4_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, uint32_t slaveAddress, TinyCLR_I2c_AddressFormat addressFormat, TinyCLR_I2c_BusSpeed busSpeed) {
+TinyCLR_Result STM32F4_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, const TinyCLR_I2c_Settings* settings) {
+    uint32_t slaveAddress = settings->SlaveAddress;
+    TinyCLR_I2c_AddressFormat addressFormat = settings->AddressFormat;
+    TinyCLR_I2c_BusSpeed busSpeed = settings->BusSpeed;
     uint32_t rateKhz;
     uint32_t ccr;
 
@@ -362,9 +366,6 @@ TinyCLR_Result STM32F4_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self,
 }
 
 TinyCLR_Result STM32F4_I2c_Acquire(const TinyCLR_I2c_Controller* self) {
-    if (self == nullptr)
-        return TinyCLR_Result::ArgumentNull;
-
     auto state = reinterpret_cast<I2cState*>(self->ApiInfo->State);
 
     if (state->initializeCount == 0) {
@@ -378,8 +379,8 @@ TinyCLR_Result STM32F4_I2c_Acquire(const TinyCLR_I2c_Controller* self) {
         if (!STM32F4_GpioInternal_OpenPin(sda.number) || !STM32F4_GpioInternal_OpenPin(scl.number))
             return TinyCLR_Result::SharingViolation;
 
-        STM32F4_GpioInternal_ConfigurePin(sda.number, STM32F4_Gpio_PortMode::AlternateFunction, STM32F4_Gpio_OutputType::OpenDrain, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::PullUp, sda.alternateFunction);
         STM32F4_GpioInternal_ConfigurePin(scl.number, STM32F4_Gpio_PortMode::AlternateFunction, STM32F4_Gpio_OutputType::OpenDrain, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::PullUp, scl.alternateFunction);
+        STM32F4_GpioInternal_ConfigurePin(sda.number, STM32F4_Gpio_PortMode::AlternateFunction, STM32F4_Gpio_OutputType::OpenDrain, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::PullUp, sda.alternateFunction);
 
         RCC->APB1ENR |= (controllerIndex == 0 ? RCC_APB1ENR_I2C1EN : controllerIndex == 1 ? RCC_APB1ENR_I2C2EN : RCC_APB1ENR_I2C3EN);
 
@@ -457,16 +458,6 @@ void STM32F4_I2c_Reset() {
         STM32F4_I2c_Release(&i2cControllers[i]);
 
         auto state = &i2cStates[i];
-
-        state->i2cConfiguration.address = 0;
-        state->i2cConfiguration.clockRate = 0;
-        state->i2cConfiguration.clockRate2 = 0;
-
-        state->readI2cTransactionAction.bytesToTransfer = 0;
-        state->readI2cTransactionAction.bytesTransferred = 0;
-
-        state->writeI2cTransactionAction.bytesToTransfer = 0;
-        state->writeI2cTransactionAction.bytesTransferred = 0;
 
         state->initializeCount = 0;
     }

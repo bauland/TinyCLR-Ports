@@ -16,6 +16,8 @@
 #include <algorithm>
 #include "AT91.h"
 
+#define USART_EVENT_POST_DEBOUNCE_TICKS (10 * 10000) // 10ms between each events
+
 static const uint32_t uartTxDefaultBuffersSize[] = AT91_UART_DEFAULT_TX_BUFFER_SIZE;
 static const uint32_t uartRxDefaultBuffersSize[] = AT91_UART_DEFAULT_RX_BUFFER_SIZE;
 
@@ -34,16 +36,22 @@ struct UartState {
     size_t rxBufferOut;
     size_t rxBufferSize;
 
-    bool isOpened;
-    bool handshakeEnable;
+    bool handshaking;
+    bool enable;
 
     TinyCLR_Uart_ErrorReceivedHandler errorEventHandler;
     TinyCLR_Uart_DataReceivedHandler dataReceivedEventHandler;
+    TinyCLR_Uart_ClearToSendChangedHandler cleartosendEventHandler;
 
     const TinyCLR_Uart_Controller* controller;
+
     bool tableInitialized = false;
 
     uint16_t initializeCount;
+
+    uint32_t errorEvent;
+    uint64_t lastEventTime;
+    size_t lastEventRxBufferCount;
 };
 
 static UartState uartStates[TOTAL_UART_CONTROLLERS];
@@ -229,6 +237,16 @@ TinyCLR_Result AT91_Uart_SetWriteBufferSize(const TinyCLR_Uart_Controller* self,
     return TinyCLR_Result::Success;
 }
 
+bool AT91_Uart_CanPostEvent(int8_t controllerIndex) {
+    auto state = reinterpret_cast<UartState*>(&uartStates[controllerIndex]);
+    bool canPost = (AT91_Time_GetTimeForProcessorTicks(nullptr, AT91_Time_GetCurrentProcessorTicks(nullptr)) - state->lastEventTime) > USART_EVENT_POST_DEBOUNCE_TICKS;
+
+    if (canPost) // only update new time if system accepts to post event!
+        state->lastEventTime = AT91_Time_GetTimeForProcessorTicks(nullptr, AT91_Time_GetCurrentProcessorTicks(nullptr));
+
+    return canPost;
+}
+
 TinyCLR_Result AT91_Uart_PinConfiguration(int controllerIndex, bool enable) {
     DISABLE_INTERRUPTS_SCOPED(irq);
 
@@ -254,7 +272,7 @@ TinyCLR_Result AT91_Uart_PinConfiguration(int controllerIndex, bool enable) {
         // Connect pin to UART
         AT91_Gpio_ConfigurePin(rxPin, AT91_Gpio_Direction::Input, rxPinMode, AT91_Gpio_ResistorMode::Inactive);
 
-        if (state->handshakeEnable) {
+        if (state->handshaking) {
             if (ctsPin == PIN_NONE || rtsPin == PIN_NONE)
                 return TinyCLR_Result::NotSupported;
 
@@ -268,7 +286,7 @@ TinyCLR_Result AT91_Uart_PinConfiguration(int controllerIndex, bool enable) {
         // Connect pin to UART
         AT91_Gpio_ConfigurePin(rxPin, AT91_Gpio_Direction::Input, AT91_Gpio_PeripheralSelection::None, AT91_Gpio_ResistorMode::Inactive);
 
-        if (state->handshakeEnable) {
+        if (state->handshaking) {
             AT91_Gpio_ConfigurePin(ctsPin, AT91_Gpio_Direction::Input, AT91_Gpio_PeripheralSelection::None, AT91_Gpio_ResistorMode::Inactive);
             AT91_Gpio_ConfigurePin(rtsPin, AT91_Gpio_Direction::Input, AT91_Gpio_PeripheralSelection::None, AT91_Gpio_ResistorMode::Inactive);
         }
@@ -282,7 +300,7 @@ void AT91_Uart_SetErrorEvent(int32_t controllerIndex, TinyCLR_Uart_Error error) 
     auto state = &uartStates[controllerIndex];
 
     if (state->errorEventHandler != nullptr)
-        state->errorEventHandler(state->controller, error);
+        state->errorEventHandler(state->controller, error, AT91_Time_GetCurrentProcessorTime());
 }
 
 void AT91_Uart_ReceiveData(int32_t controllerIndex, uint32_t sr) {
@@ -291,32 +309,59 @@ void AT91_Uart_ReceiveData(int32_t controllerIndex, uint32_t sr) {
     uint8_t rxdata = usart.US_RHR;
 
     auto state = &uartStates[controllerIndex];
+    auto canPostEvent = AT91_Uart_CanPostEvent(controllerIndex);
+    bool error = (state->rxBufferCount == state->rxBufferSize) || (sr & AT91_USART::US_OVRE) || (sr & AT91_USART::US_FRAME) || (sr & AT91_USART::US_PARE);
+
+    if (sr & AT91_USART::US_OVRE)
+        if (canPostEvent) AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::Overrun);
+
+    if (sr & AT91_USART::US_FRAME)
+        if (canPostEvent) AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::Frame);
+
+    if (sr & AT91_USART::US_PARE)
+        if (canPostEvent) AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::ReceiveParity);
 
     if (state->rxBufferCount == state->rxBufferSize) {
-        AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::BufferFull);
+        if (canPostEvent) AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::BufferFull);
+    }
 
+    if (error) {
+        // if error detected, clear status or reset CR.
+        usart.US_CR = (AT91_USART::US_RSTRX | AT91_USART::US_RSTTX | AT91_USART::US_RXDIS | AT91_USART::US_TXDIS | AT91_USART::US_RSTSTA);
+
+        usart.US_CR = AT91_USART::US_RXEN;
+        usart.US_CR = AT91_USART::US_TXEN;
         return;
     }
 
-    state->RxBuffer[state->rxBufferIn++] = rxdata;
+    if (sr & AT91_USART::US_RXRDY) {
+        state->RxBuffer[state->rxBufferIn++] = rxdata;
 
-    state->rxBufferCount++;
+        state->rxBufferCount++;
 
-    if (state->rxBufferIn == state->rxBufferSize)
-        state->rxBufferIn = 0;
+        if (state->rxBufferIn == state->rxBufferSize)
+            state->rxBufferIn = 0;
 
-    if (state->dataReceivedEventHandler != nullptr)
-        state->dataReceivedEventHandler(state->controller, 1);
+        if (state->dataReceivedEventHandler != nullptr) {
+            if (canPostEvent) {
+                if (state->rxBufferCount > state->lastEventRxBufferCount) {
+                    // if driver hold event long enough that more than 1 byte
+                    state->dataReceivedEventHandler(state->controller, state->rxBufferCount - state->lastEventRxBufferCount, AT91_Time_GetCurrentProcessorTime());
+                }
+                else {
+                    // if user use poll to read data and rxBufferCount <= lastEventRxBufferCount, driver send at least 1 byte comming
+                    state->dataReceivedEventHandler(state->controller, 1, AT91_Time_GetCurrentProcessorTime());
+                }
 
-    if (sr & AT91_USART::US_OVRE)
-        AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::Overrun);
+                state->lastEventRxBufferCount = state->rxBufferCount;
+            }
+        }
+    }
 
-    if (sr & AT91_USART::US_FRAME)
-        AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::Frame);
-
-    if (sr & AT91_USART::US_PARE)
-        AT91_Uart_SetErrorEvent(controllerIndex, TinyCLR_Uart_Error::ReceiveParity);
-
+    // Control rts by software - enable / disable when internal buffer reach 3/4
+    if (state->handshaking && (state->rxBufferCount >= ((state->rxBufferSize * 3) / 4))) {
+        usart.US_CR |= AT91_USART::US_RTSDIS;// Write rts to 1
+    }
 }
 
 void AT91_Uart_TransmitData(int32_t controllerIndex) {
@@ -349,14 +394,27 @@ void AT91_Uart_InterruptHandler(void *param) {
 
     AT91_USART &usart = AT91::USART(controllerIndex);
 
-    uint32_t status = usart.US_CSR;
+    uint32_t sr = usart.US_CSR;
 
-    if (status & AT91_USART::US_RXRDY) {
-        AT91_Uart_ReceiveData(controllerIndex, status);
+    if (sr & AT91_USART::US_RXRDY || sr & AT91_USART::US_OVRE || sr & AT91_USART::US_FRAME || sr & AT91_USART::US_PARE) {
+        AT91_Uart_ReceiveData(controllerIndex, sr);
     }
 
-    if (status & AT91_USART::US_TXRDY) {
+    if (sr & AT91_USART::US_TXRDY) {
         AT91_Uart_TransmitData(controllerIndex);
+    }
+
+    auto state = &uartStates[controllerIndex];
+
+    if (state->handshaking && (sr & AT91_USART::US_CTSIC)) {
+        bool ctsActive;
+
+        AT91_Uart_GetClearToSendState(state->controller, ctsActive);
+
+        auto canPostEvent = AT91_Uart_CanPostEvent(controllerIndex);
+
+        if (canPostEvent && state->cleartosendEventHandler != nullptr)
+            state->cleartosendEventHandler(state->controller, ctsActive, AT91_Time_GetCurrentProcessorTime());
     }
 
 }
@@ -387,7 +445,7 @@ TinyCLR_Result AT91_Uart_Acquire(const TinyCLR_Uart_Controller* self) {
         int32_t txPin = AT91_Uart_GetTxPin(controllerIndex);
         int32_t rxPin = AT91_Uart_GetRxPin(controllerIndex);
 
-        if (state->isOpened || !AT91_Gpio_OpenPin(txPin) || !AT91_Gpio_OpenPin(rxPin))
+        if (!AT91_Gpio_OpenPin(txPin) || !AT91_Gpio_OpenPin(rxPin))
             return TinyCLR_Result::SharingViolation;
 
         state->txBufferCount = 0;
@@ -399,6 +457,11 @@ TinyCLR_Result AT91_Uart_Acquire(const TinyCLR_Uart_Controller* self) {
         state->rxBufferOut = 0;
 
         state->controller = self;
+        state->handshaking = false;
+        state->enable = false;
+
+        state->lastEventRxBufferCount = 0;
+        state->lastEventTime = AT91_Time_GetTimeForProcessorTicks(nullptr, AT91_Time_GetCurrentProcessorTicks(nullptr));
 
         AT91_PMC &pmc = AT91::PMC();
 
@@ -412,7 +475,12 @@ TinyCLR_Result AT91_Uart_Acquire(const TinyCLR_Uart_Controller* self) {
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, uint32_t baudRate, uint32_t dataBits, TinyCLR_Uart_Parity parity, TinyCLR_Uart_StopBitCount stopBits, TinyCLR_Uart_Handshake handshaking) {
+TinyCLR_Result AT91_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, const TinyCLR_Uart_Settings* settings) {
+    uint32_t baudRate = settings->BaudRate;
+    uint32_t dataBits = settings->DataBits;
+    TinyCLR_Uart_Parity parity = settings->Parity;
+    TinyCLR_Uart_StopBitCount stopBits = settings->StopBits;
+    TinyCLR_Uart_Handshake handshaking = settings->Handshaking;
 
     DISABLE_INTERRUPTS_SCOPED(irq);
 
@@ -451,7 +519,7 @@ TinyCLR_Result AT91_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, 
     usart.US_TTGR = 0;
 
     state->controllerIndex = controllerIndex;
-    AT91_Interrupt_Activate(uartId, (uint32_t*)&AT91_Uart_InterruptHandler, (void*)&state->controllerIndex);
+    AT91_InterruptInternal_Activate(uartId, (uint32_t*)&AT91_Uart_InterruptHandler, (void*)&state->controllerIndex);
 
     if (AT91_Uart_PinConfiguration(controllerIndex, true) == TinyCLR_Result::NotSupported)
         return TinyCLR_Result::NotSupported;
@@ -512,6 +580,18 @@ TinyCLR_Result AT91_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, 
         return TinyCLR_Result::NotSupported;
     }
 
+    switch (handshaking) {
+    case TinyCLR_Uart_Handshake::RequestToSend:
+        usart.US_IER = AT91_USART::US_CTSIC;
+
+        state->handshaking = true;
+        break;
+
+    case TinyCLR_Uart_Handshake::XOnXOff:
+    case TinyCLR_Uart_Handshake::RequestToSendXOnXOff:
+        return TinyCLR_Result::NotSupported;
+    }
+
     auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
 
     if (state->txBufferSize == 0) {
@@ -537,12 +617,11 @@ TinyCLR_Result AT91_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, 
             return TinyCLR_Result::OutOfMemory;
         }
     }
+
     usart.US_MR = USMR;
 
     usart.US_CR = AT91_USART::US_RXEN;
     usart.US_CR = AT91_USART::US_TXEN;
-
-    state->isOpened = true;
 
     return TinyCLR_Result::Success;
 }
@@ -567,17 +646,16 @@ TinyCLR_Result AT91_Uart_Release(const TinyCLR_Uart_Controller* self) {
         state->rxBufferIn = 0;
         state->rxBufferOut = 0;
 
-        state->isOpened = false;
-        state->handshakeEnable = false;
+        state->handshaking = false;
+        state->enable = false;
 
         AT91_PMC &pmc = AT91::PMC();
 
         int32_t uartId = AT91_Uart_GetPeripheralId(controllerIndex);
 
-        AT91_Interrupt_Disable(uartId);
+        AT91_InterruptInternal_Deactivate(uartId);
 
-        if (state->isOpened)
-            AT91_Uart_PinConfiguration(controllerIndex, false);
+        AT91_Uart_PinConfiguration(controllerIndex, false);
 
         pmc.DisablePeriphClock(uartId);
 
@@ -600,7 +678,6 @@ TinyCLR_Result AT91_Uart_Release(const TinyCLR_Uart_Controller* self) {
 
     return TinyCLR_Result::Success;
 }
-
 
 void AT91_Uart_TxBufferEmptyInterruptEnable(int controllerIndex, bool enable) {
     DISABLE_INTERRUPTS_SCOPED(irq);
@@ -628,8 +705,13 @@ void AT91_Uart_RxBufferFullInterruptEnable(int controllerIndex, bool enable) {
     }
 }
 
-bool AT91_Uart_TxHandshakeEnabledState(int controllerIndex) {
-    return true; // If this handshake input is not being used, it is assumed to be good
+bool AT91_Uart_CanSend(int controllerIndex) {
+    auto state = &uartStates[controllerIndex];
+    bool value;
+
+    AT91_Uart_GetClearToSendState(state->controller, value);
+
+    return value;
 }
 
 TinyCLR_Result AT91_Uart_Flush(const TinyCLR_Uart_Controller* self) {
@@ -637,7 +719,7 @@ TinyCLR_Result AT91_Uart_Flush(const TinyCLR_Uart_Controller* self) {
 
     auto controllerIndex = state->controllerIndex;
 
-    if (state->isOpened == false)
+    if (state->initializeCount == 0)
         return TinyCLR_Result::NotAvailable;
 
     // Make sute interrupt is enable
@@ -651,20 +733,20 @@ TinyCLR_Result AT91_Uart_Flush(const TinyCLR_Uart_Controller* self) {
 }
 
 TinyCLR_Result AT91_Uart_Read(const TinyCLR_Uart_Controller* self, uint8_t* buffer, size_t& length) {
-
-    size_t i = 0;;
-
     DISABLE_INTERRUPTS_SCOPED(irq);
 
     auto state = reinterpret_cast<UartState*>(self->ApiInfo->State);
+    auto controllerIndex = state->controllerIndex;
 
-    if (state->isOpened == false || state->rxBufferSize == 0) {
+    if (state->initializeCount == 0 || state->rxBufferSize == 0) {
         length = 0;
 
         return TinyCLR_Result::NotAvailable;
     }
 
-    length = std::min(state->rxBufferCount, length);
+    length = std::min(self->GetBytesToRead(self), length);
+
+    size_t i = 0;
 
     while (i < length) {
         buffer[i] = state->RxBuffer[state->rxBufferOut];
@@ -675,6 +757,12 @@ TinyCLR_Result AT91_Uart_Read(const TinyCLR_Uart_Controller* self, uint8_t* buff
 
         if (state->rxBufferOut == state->rxBufferSize)
             state->rxBufferOut = 0;
+
+        // Control rts by software - enable / disable when internal buffer reach 3/4
+        if (state->handshaking && (state->rxBufferCount < ((state->rxBufferSize * 3) / 4))) {
+            AT91_USART &usart = AT91::USART(controllerIndex);
+            usart.US_CR |= AT91_USART::US_RTSEN;// Write rts to 0
+        }
     }
 
     return TinyCLR_Result::Success;
@@ -690,7 +778,7 @@ TinyCLR_Result AT91_Uart_Write(const TinyCLR_Uart_Controller* self, const uint8_
 
     auto controllerIndex = state->controllerIndex;
 
-    if (state->isOpened == false || state->txBufferSize == 0) {
+    if (state->initializeCount == 0 || state->txBufferSize == 0) {
         length = 0;
 
         return TinyCLR_Result::NotAvailable;
@@ -742,20 +830,52 @@ TinyCLR_Result AT91_Uart_SetDataReceivedHandler(const TinyCLR_Uart_Controller* s
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_Uart_GetClearToSendState(const TinyCLR_Uart_Controller* self, bool& state) {
-    return TinyCLR_Result::NotImplemented;
+TinyCLR_Result AT91_Uart_GetClearToSendState(const TinyCLR_Uart_Controller* self, bool& value) {
+    auto state = reinterpret_cast<UartState*>(self->ApiInfo->State);
+
+    value = true;
+
+    if (state->handshaking) {
+        auto controllerIndex = state->controllerIndex;
+
+        // Reading the pin state to protect values from register for inteterupt which is higher priority (some bits are clear once read)
+        TinyCLR_Gpio_PinValue pinState;
+        AT91_Gpio_Read(nullptr, uartCtsPins[controllerIndex].number, pinState);
+
+        value = (pinState == TinyCLR_Gpio_PinValue::High) ? false : true;
+    }
+
+    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result AT91_Uart_SetClearToSendChangedHandler(const TinyCLR_Uart_Controller* self, TinyCLR_Uart_ClearToSendChangedHandler handler) {
-    return TinyCLR_Result::NotImplemented;
+    auto state = reinterpret_cast<UartState*>(self->ApiInfo->State);
+    state->cleartosendEventHandler = handler;
+
+    return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_Uart_GetIsRequestToSendEnabled(const TinyCLR_Uart_Controller* self, bool& state) {
-    return TinyCLR_Result::NotImplemented;
+TinyCLR_Result AT91_Uart_GetIsRequestToSendEnabled(const TinyCLR_Uart_Controller* self, bool& value) {
+    auto state = reinterpret_cast<UartState*>(self->ApiInfo->State);
+
+    value = false;
+
+    if (state->handshaking) {
+        auto controllerIndex = state->controllerIndex;
+
+        // Reading the pin state to protect values from register for inteterupt which is higher priority (some bits are clear once read)
+        TinyCLR_Gpio_PinValue pinState;
+        AT91_Gpio_Read(nullptr, uartRtsPins[controllerIndex].number, pinState);
+
+        value = (pinState == TinyCLR_Gpio_PinValue::High) ? true : false;
+    }
+
+    return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_Uart_SetIsRequestToSendEnabled(const TinyCLR_Uart_Controller* self, bool state) {
-    return TinyCLR_Result::NotImplemented;
+TinyCLR_Result AT91_Uart_SetIsRequestToSendEnabled(const TinyCLR_Uart_Controller* self, bool value) {
+    // Enable by hardware, no support by software.
+    return TinyCLR_Result::NotSupported;
 }
 
 size_t AT91_Uart_GetBytesToRead(const TinyCLR_Uart_Controller* self) {
@@ -773,7 +893,7 @@ size_t AT91_Uart_GetBytesToWrite(const TinyCLR_Uart_Controller* self) {
 TinyCLR_Result AT91_Uart_ClearReadBuffer(const TinyCLR_Uart_Controller* self) {
     auto state = reinterpret_cast<UartState*>(self->ApiInfo->State);
 
-    state->rxBufferCount = state->rxBufferIn = state->rxBufferOut = 0;
+    state->rxBufferCount = state->rxBufferIn = state->rxBufferOut = state->lastEventRxBufferCount = 0;
 
     return TinyCLR_Result::Success;
 }
@@ -793,16 +913,21 @@ void AT91_Uart_Reset() {
 
         AT91_Uart_Release(&uartControllers[i]);
 
-        uartStates[i].isOpened = false;
-        uartStates[i].tableInitialized = false;
         uartStates[i].initializeCount = 0;
+        uartStates[i].tableInitialized = false;
     }
 }
 
 TinyCLR_Result AT91_Uart_Enable(const TinyCLR_Uart_Controller* self) {
+    auto state = reinterpret_cast<UartState*>(self->ApiInfo->State);
+    state->enable = true;
+
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result AT91_Uart_Disable(const TinyCLR_Uart_Controller* self) {
+    auto state = reinterpret_cast<UartState*>(self->ApiInfo->State);
+    state->enable = false;
+
     return TinyCLR_Result::Success;
 }

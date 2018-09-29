@@ -560,9 +560,9 @@ void AT91_Can_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result AT91_Can_Acquire(const TinyCLR_Can_Controller* self);
 TinyCLR_Result AT91_Can_Release(const TinyCLR_Can_Controller* self);
 TinyCLR_Result AT91_Can_SoftReset(const TinyCLR_Can_Controller* self);
-TinyCLR_Result AT91_Can_WriteMessage(const TinyCLR_Can_Controller* self, uint32_t arbitrationId, bool isExtendedId, bool isRemoteTransmissionRequest, const uint8_t* data, size_t length);
-TinyCLR_Result AT91_Can_ReadMessage(const TinyCLR_Can_Controller* self, uint32_t& arbitrationId, bool& isExtendedId, bool& isRemoteTransmissionRequest, uint8_t* data, size_t& length, uint64_t& timestamp);
-TinyCLR_Result AT91_Can_SetBitTiming(const TinyCLR_Can_Controller* self, uint32_t propagation, uint32_t phase1, uint32_t phase2, uint32_t baudratePrescaler, uint32_t synchronizationJumpWidth, bool useMultiBitSampling);
+TinyCLR_Result AT91_Can_WriteMessage(const TinyCLR_Can_Controller* self, const TinyCLR_Can_Message* messages, size_t& length);
+TinyCLR_Result AT91_Can_ReadMessage(const TinyCLR_Can_Controller* self, TinyCLR_Can_Message* messages, size_t& length);
+TinyCLR_Result AT91_Can_SetBitTiming(const TinyCLR_Can_Controller* self, const TinyCLR_Can_BitTiming* timing);
 size_t AT91_Can_GetMessagesToRead(const TinyCLR_Can_Controller* self);
 size_t AT91_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self);
 TinyCLR_Result AT91_Can_SetMessageReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_MessageReceivedHandler handler);
@@ -639,6 +639,8 @@ struct PwmState {
 
     double frequency;
     double dutyCycle[MAX_PWM_PER_CONTROLLER];
+
+    uint16_t initializeCount;
 };
 void AT91_Pwm_AddApi(const TinyCLR_Api_Manager* apiManager);
 void AT91_Pwm_Reset();
@@ -662,6 +664,7 @@ uint32_t AT91_Pwm_GetChannelCount(const TinyCLR_Pwm_Controller* self);
 void AT91_Rtc_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result AT91_Rtc_Acquire(const TinyCLR_Rtc_Controller* self);
 TinyCLR_Result AT91_Rtc_Release(const TinyCLR_Rtc_Controller* self);
+TinyCLR_Result AT91_Rtc_IsValid(const TinyCLR_Rtc_Controller* self, bool& value);
 TinyCLR_Result AT91_Rtc_GetTime(const TinyCLR_Rtc_Controller* self, TinyCLR_Rtc_DateTime& value);
 TinyCLR_Result AT91_Rtc_SetTime(const TinyCLR_Rtc_Controller* self, TinyCLR_Rtc_DateTime value);
 
@@ -776,7 +779,7 @@ bool AT91_Spi_Transaction_Stop(int32_t controller);
 bool AT91_Spi_Transaction_nWrite8_nRead8(int32_t controller);
 TinyCLR_Result AT91_Spi_Acquire(const TinyCLR_Spi_Controller* self);
 TinyCLR_Result AT91_Spi_Release(const TinyCLR_Spi_Controller* self);
-TinyCLR_Result AT91_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, uint32_t chipSelectLine, bool useControllerChipSelect, uint32_t clockFrequency, uint32_t dataBitLength, TinyCLR_Spi_Mode mode);
+TinyCLR_Result AT91_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, const TinyCLR_Spi_Settings* settings);
 TinyCLR_Result AT91_Spi_Read(const TinyCLR_Spi_Controller* self, uint8_t* buffer, size_t& length);
 TinyCLR_Result AT91_Spi_Write(const TinyCLR_Spi_Controller* self, const uint8_t* buffer, size_t& length);
 TinyCLR_Result AT91_Spi_WriteRead(const TinyCLR_Spi_Controller* self, const uint8_t* writeBuffer, size_t& writeLength, uint8_t* readBuffer, size_t& readLength, bool deselectAfter);
@@ -961,7 +964,7 @@ AT91_Gpio_PeripheralSelection AT91_Uart_GetTxAlternateFunction(int32_t controlle
 AT91_Gpio_PeripheralSelection AT91_Uart_GetRxAlternateFunction(int32_t controller);
 AT91_Gpio_PeripheralSelection AT91_Uart_GetRtsAlternateFunction(int32_t controller);
 AT91_Gpio_PeripheralSelection AT91_Uart_GetCtsAlternateFunction(int32_t controller);
-bool AT91_Uart_TxHandshakeEnabledState(int controller);
+bool AT91_Uart_CanSend(int controller);
 void AT91_Uart_TxBufferEmptyInterruptEnable(int controller, bool enable);
 void AT91_Uart_RxBufferFullInterruptEnable(int controller, bool enable);
 
@@ -969,7 +972,7 @@ TinyCLR_Result AT91_Uart_Acquire(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result AT91_Uart_Release(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result AT91_Uart_Enable(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result AT91_Uart_Disable(const TinyCLR_Uart_Controller* self);
-TinyCLR_Result AT91_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, uint32_t baudRate, uint32_t dataBits, TinyCLR_Uart_Parity parity, TinyCLR_Uart_StopBitCount stopBits, TinyCLR_Uart_Handshake handshaking);
+TinyCLR_Result AT91_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, const TinyCLR_Uart_Settings* settings);
 TinyCLR_Result AT91_Uart_Flush(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result AT91_Uart_Read(const TinyCLR_Uart_Controller* self, uint8_t* buffer, size_t& length);
 TinyCLR_Result AT91_Uart_Write(const TinyCLR_Uart_Controller* self, const uint8_t* buffer, size_t& length);
@@ -1108,59 +1111,42 @@ public:
     }
 };
 
-class AT91_SmartPtr_IRQ {
-    uint32_t m_state;
-
-    void Disable();
-    void Restore();
+class AT91_DisableInterrupts_RaiiHelper {
+    uint32_t state;
 
 public:
-    AT91_SmartPtr_IRQ();
-    ~AT91_SmartPtr_IRQ();
+    AT91_DisableInterrupts_RaiiHelper();
+    ~AT91_DisableInterrupts_RaiiHelper();
 
     bool IsDisabled();
     void Acquire();
     void Release();
-    void Probe();
-
-    static uint32_t GetState();
-
 };
 
-class AT91_SmartPtr_Interrupt {
+class AT91_InterruptStarted_RaiiHelper {
 public:
-    AT91_SmartPtr_Interrupt();
-    ~AT91_SmartPtr_Interrupt();
+    AT91_InterruptStarted_RaiiHelper();
+    ~AT91_InterruptStarted_RaiiHelper();
 };
 
-#define DISABLE_INTERRUPTS_SCOPED(name) AT91_SmartPtr_IRQ name
-#define INTERRUPT_STARTED_SCOPED(name) AT91_SmartPtr_Interrupt name
+#define DISABLE_INTERRUPTS_SCOPED(name) AT91_DisableInterrupts_RaiiHelper name
+#define INTERRUPT_STARTED_SCOPED(name) AT91_InterruptStarted_RaiiHelper name
+
+bool AT91_InterruptInternal_Activate(uint32_t index, uint32_t* isr, void* isrParam);
+bool AT91_InterruptInternal_Deactivate(uint32_t index);
 
 void AT91_Interrupt_AddApi(const TinyCLR_Api_Manager* apiManager);
 const TinyCLR_Api_Info* AT91_Interrupt_GetRequiredApi();
 TinyCLR_Result AT91_Interrupt_Initialize(const TinyCLR_Interrupt_Controller* self, TinyCLR_Interrupt_StartStopHandler onInterruptStart, TinyCLR_Interrupt_StartStopHandler onInterruptEnd);
 TinyCLR_Result AT91_Interrupt_Uninitialize(const TinyCLR_Interrupt_Controller* self);
-bool AT91_Interrupt_Activate(uint32_t Irq_Index, uint32_t *handler, void* ISR_Param);
-bool AT91_Interrupt_Deactivate(uint32_t Irq_Index);
-bool AT91_Interrupt_Enable(uint32_t Irq_Index);
-bool AT91_Interrupt_Disable(uint32_t Irq_Index);
-bool AT91_Interrupt_EnableState(uint32_t Irq_Index);
-bool AT91_Interrupt_InterruptState(uint32_t Irq_Index);
-
-
-bool AT91_Interrupt_GlobalIsDisabled();
-bool AT91_Interrupt_GlobalEnabled(bool force);
-bool AT91_Interrupt_GlobalDisabled(bool force);
-
-void AT91_Interrupt_GlobalRestore();
-void AT91_Interrupt_GlobalWaitForInterrupt();
+void AT91_Interrupt_Enable();
+void AT91_Interrupt_Disable();
+void AT91_Interrupt_WaitForInterrupt();
+bool AT91_Interrupt_IsDisabled();
 
 void AT91_Interrupt_ForceInterrupt(uint32_t Irq_Index);
-
 extern TinyCLR_Interrupt_StartStopHandler AT91_Interrupt_Started;
 extern TinyCLR_Interrupt_StartStopHandler AT91_Interrupt_Ended;
-
-// I2C
 
 //////////////////////////////////////////////////////////////////////////////
 // AT91_I2C
@@ -1248,7 +1234,7 @@ void AT91_I2c_AddApi(const TinyCLR_Api_Manager* apiManager);
 void AT91_I2c_Reset();
 TinyCLR_Result AT91_I2c_Acquire(const TinyCLR_I2c_Controller* self);
 TinyCLR_Result AT91_I2c_Release(const TinyCLR_I2c_Controller* self);
-TinyCLR_Result AT91_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, uint32_t slaveAddress, TinyCLR_I2c_AddressFormat addressFormat, TinyCLR_I2c_BusSpeed busSpeed);
+TinyCLR_Result AT91_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, const TinyCLR_I2c_Settings* settings);
 TinyCLR_Result AT91_I2c_WriteRead(const TinyCLR_I2c_Controller* self, const uint8_t* writeBuffer, size_t& writeLength, uint8_t* readBuffer, size_t& readLength, bool sendStartCondition, bool sendStopCondition, TinyCLR_I2c_TransferStatus& error);
 void AT91_I2c_StartTransaction();
 void AT91_I2c_StopTransaction();
@@ -1402,6 +1388,7 @@ uint64_t AT91_Time_GetProcessorTicksForTime(const TinyCLR_NativeTime_Controller*
 uint64_t AT91_Time_MillisecondsToTicks(const TinyCLR_NativeTime_Controller* self, uint64_t ticks);
 uint64_t AT91_Time_MicrosecondsToTicks(const TinyCLR_NativeTime_Controller* self, uint64_t microseconds);
 uint64_t AT91_Time_GetCurrentProcessorTicks(const TinyCLR_NativeTime_Controller* self);
+uint64_t AT91_Time_GetCurrentProcessorTime();
 TinyCLR_Result AT91_Time_SetNextTickCallbackTime(const TinyCLR_NativeTime_Controller* self, uint64_t processorTicks);
 TinyCLR_Result AT91_Time_SetTickCallback(const TinyCLR_NativeTime_Controller* self, TinyCLR_NativeTime_Callback callback);
 void AT91_Time_Delay(const TinyCLR_NativeTime_Controller* self, uint64_t microseconds);
@@ -1412,8 +1399,8 @@ void AT91_Time_DelayNative(const TinyCLR_NativeTime_Controller* self, uint64_t n
 void AT91_Power_AddApi(const TinyCLR_Api_Manager* apiManager);
 const TinyCLR_Api_Info* AT91_Power_GetRequiredApi();
 void AT91_Power_SetHandlers(void(*stop)(), void(*restart)());
-void AT91_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level);
-void AT91_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
+TinyCLR_Result AT91_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource);
+TinyCLR_Result AT91_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
 TinyCLR_Result AT91_Power_Initialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result AT91_Power_Uninitialize(const TinyCLR_Power_Controller* self);
 

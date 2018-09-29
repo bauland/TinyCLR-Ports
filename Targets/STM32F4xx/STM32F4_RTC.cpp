@@ -87,6 +87,7 @@ void STM32F4_Rtc_AddApi(const TinyCLR_Api_Manager* apiManager) {
         rtcControllers[i].ApiInfo = &rtcApi[i];
         rtcControllers[i].Acquire = &STM32F4_Rtc_Acquire;
         rtcControllers[i].Release = &STM32F4_Rtc_Release;
+        rtcControllers[i].IsValid = &STM32F4_Rtc_IsValid;
         rtcControllers[i].GetTime = &STM32F4_Rtc_GetTime;
         rtcControllers[i].SetTime = &STM32F4_Rtc_SetTime;
 
@@ -241,6 +242,17 @@ TinyCLR_Result STM32F4_Rtc_Acquire(const TinyCLR_Rtc_Controller* self) {
 }
 
 TinyCLR_Result STM32F4_Rtc_Release(const TinyCLR_Rtc_Controller* self) {
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result STM32F4_Rtc_IsValid(const TinyCLR_Rtc_Controller* self, bool& value) {
+    TinyCLR_Rtc_DateTime rtcNow;
+
+    value = (STM32F4_Rtc_GetTime(self, rtcNow) == TinyCLR_Result::Success);
+
+    if (rtcNow.Second >= 60 || rtcNow.Minute >= 60 || rtcNow.Hour >= 24 || rtcNow.DayOfMonth >= 32 || rtcNow.Month >= 13 || rtcNow.Year <= 1979 || rtcNow.DayOfWeek == 0)
+        value = false;
+
     return TinyCLR_Result::Success;
 }
 

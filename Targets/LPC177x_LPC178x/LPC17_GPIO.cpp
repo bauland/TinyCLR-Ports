@@ -76,6 +76,7 @@ static bool pinReserved[TOTAL_GPIO_PINS];
 static int64_t gpioDebounceInTicks[TOTAL_GPIO_PINS];
 static GpioInterruptState gpioInterruptState[TOTAL_GPIO_INTERRUPT_PINS];
 static TinyCLR_Gpio_PinDriveMode pinDriveMode[TOTAL_GPIO_PINS];
+static TinyCLR_Gpio_PinValue previousOutputValue[TOTAL_GPIO_PINS];
 
 static TinyCLR_Gpio_Controller gpioControllers[TOTAL_GPIO_CONTROLLERS];
 static TinyCLR_Api_Info gpioApi[TOTAL_GPIO_CONTROLLERS];
@@ -147,7 +148,7 @@ void LPC17_Gpio_InterruptHandler(void* param) {
 
     uint32_t* GPIO_INT_Overall_IO_Status_Register = GPIO_INT_Overall_IO_Status;
 
-    bool executeIsr = true;
+    bool executeIsr = false;
 
     for (auto port = 0; port <= 2; port += 2) { // Only port 0 and port 2 support interrupts
         auto status_mask_register = 1 << port;
@@ -173,16 +174,15 @@ void LPC17_Gpio_InterruptHandler(void* param) {
 
             if (interruptState->handler && ((expectedEdgeInterger & currentEdgeInterger) || (expectedEdgeInterger == 0))) {
                 if (interruptState->debounce) {
-                    if ((LPC17_Time_GetTimeForProcessorTicks(nullptr, LPC17_Time_GetCurrentProcessorTicks(nullptr)) - interruptState->lastDebounceTicks) >= gpioDebounceInTicks[interruptState->pin]) {
-                        interruptState->lastDebounceTicks = LPC17_Time_GetTimeForProcessorTicks(nullptr, LPC17_Time_GetCurrentProcessorTicks(nullptr));
+                    if ((LPC17_Time_GetTimeForProcessorTicks(nullptr, LPC17_Time_GetCurrentProcessorTicks(nullptr)) - interruptState->lastDebounceTicks) >= gpioDebounceInTicks[interruptState->pin]) {                        
+                        executeIsr = true;
                     }
-                    else {
-                        executeIsr = false;
-                    }
+
+                    interruptState->lastDebounceTicks = LPC17_Time_GetTimeForProcessorTicks(nullptr, LPC17_Time_GetCurrentProcessorTicks(nullptr));
                 }
 
                 if (executeIsr)
-                    interruptState->handler(interruptState->controller, interruptState->pin, edge);
+                    interruptState->handler(interruptState->controller, interruptState->pin, edge, LPC17_Time_GetCurrentProcessorTime());
             }
         }
     }
@@ -220,11 +220,10 @@ TinyCLR_Result LPC17_Gpio_SetPinChangedHandler(const TinyCLR_Gpio_Controller* se
         *GPIO_Port_X_Interrupt_RisingEdgeRegister |= pinMask;
         *GPIO_Port_X_Interrupt_FallingEdgeRegister |= pinMask;
 
-        LPC17_Interrupt_Activate(GPIO_IRQn, (uint32_t*)&LPC17_Gpio_InterruptHandler, 0);
-        LPC17_Interrupt_Enable(GPIO_IRQn);
+        LPC17_InterruptInternal_Activate(GPIO_IRQn, (uint32_t*)&LPC17_Gpio_InterruptHandler, 0);        
     }
     else {
-        LPC17_Interrupt_Disable(GPIO_IRQn);
+        LPC17_InterruptInternal_Deactivate(GPIO_IRQn);
     }
 
     return TinyCLR_Result::Success;
@@ -385,6 +384,7 @@ TinyCLR_Result LPC17_Gpio_Write(const TinyCLR_Gpio_Controller* self, uint32_t pi
     else
         LPC17_Gpio_WritePin(pin, false);
 
+    previousOutputValue[pin] = value;
     return TinyCLR_Result::Success;
 }
 
@@ -431,6 +431,8 @@ TinyCLR_Result LPC17_Gpio_SetDriveMode(const TinyCLR_Gpio_Controller* self, uint
     switch (driveMode) {
     case TinyCLR_Gpio_PinDriveMode::Output:
         LPC17_Gpio_ConfigurePin(pin, LPC17_Gpio_Direction::Output, LPC17_Gpio_PinFunction::PinFunction0, LPC17_Gpio_ResistorMode::Inactive, LPC17_Gpio_Hysteresis::Disable, LPC17_Gpio_InputPolarity::NotInverted, LPC17_Gpio_SlewRate::StandardMode, LPC17_Gpio_OutputType::PushPull);
+
+        LPC17_Gpio_Write(self, pin, previousOutputValue[pin]);
         break;
 
     case TinyCLR_Gpio_PinDriveMode::Input:
@@ -483,6 +485,8 @@ void LPC17_Gpio_Reset() {
             auto& p = gpioPins[pin];
 
             pinReserved[pin] = 0;
+            previousOutputValue[pin] = TinyCLR_Gpio_PinValue::Low;
+
             LPC17_Gpio_SetDebounceTimeout(&gpioControllers[c], pin, DEBOUNCE_DEFAULT_TICKS);
 
             if (p.apply) {

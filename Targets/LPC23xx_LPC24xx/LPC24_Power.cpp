@@ -79,30 +79,27 @@ void LPC24_Power_SetHandlers(void(*stop)(), void(*restart)()) {
     PowerRestartHandler = restart;
 }
 
-void LPC24_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level) {
+TinyCLR_Result LPC24_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource) {
     switch (level) {
+    case TinyCLR_Power_SleepLevel::Level1:
+    case TinyCLR_Power_SleepLevel::Level2:
+    case TinyCLR_Power_SleepLevel::Level3:
+    case TinyCLR_Power_SleepLevel::Level4:
+        //TODO
+        return TinyCLR_Result::NotSupported;
 
-    case TinyCLR_Power_SleepLevel::Hibernate: // stop
-        if (PowerStopHandler != 0)
-            PowerStopHandler();
+    case TinyCLR_Power_SleepLevel::Level0:
+        if (wakeSource != TinyCLR_Power_SleepWakeSource::Gpio && wakeSource != TinyCLR_Power_SleepWakeSource::SystemTimer)
+            return TinyCLR_Result::NotSupported;
 
-        return;
-
-    case TinyCLR_Power_SleepLevel::Off: // standby
-        // stop peripherals if needed
-        if (PowerStopHandler != 0)
-            PowerStopHandler();
-
-        return;
-
-    default: // sleep
+    default:
         PCON |= 1;
 
-        return;
+        return TinyCLR_Result::Success;
     }
 }
 
-void LPC24_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter) {
+TinyCLR_Result LPC24_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter) {
 #if defined RAM_BOOTLOADER_HOLD_VALUE && defined RAM_BOOTLOADER_HOLD_ADDRESS && RAM_BOOTLOADER_HOLD_ADDRESS > 0
     if (!runCoreAfter) {
         //See section 1.9 of UM10211.pdf. A write-back buffer holds the last written value. Two writes guarantee it'll appear after a reset.
@@ -125,6 +122,8 @@ void LPC24_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter) 
     WTDG.WDFEED = LPC24XX_WATCHDOG::WDFEED_reload_2;
 
     while (1); // wait for reset
+
+    return TinyCLR_Result::InvalidOperation;
 }
 
 TinyCLR_Result LPC24_Power_Initialize(const TinyCLR_Power_Controller* self) {

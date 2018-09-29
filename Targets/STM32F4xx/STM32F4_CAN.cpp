@@ -321,9 +321,9 @@ struct CanState {
 
     STM32F4_Can_Filter canDataFilter;
 
-    bool isOpened;
-
     uint16_t initializeCount;
+
+    bool enable;
 };
 
 static const STM32F4_Gpio_Pin canTxPins[] = STM32F4_CAN_TX_PINS;
@@ -990,25 +990,25 @@ bool CAN_ErrorHandler(uint8_t controllerIndex) {
 
     if (CAN_GetITStatus(CANx, CAN_IT_FF0)) {
         CAN_ClearITPendingBit(CANx, CAN_IT_FF0);
-        state->errorEventHandler(state->provider, TinyCLR_Can_Error::BufferFull);
+        state->errorEventHandler(state->provider, TinyCLR_Can_Error::BufferFull, STM32F4_Time_GetCurrentProcessorTime());
 
         return true;
     }
     else if (CAN_GetITStatus(CANx, CAN_IT_FOV0)) {
         CAN_ClearITPendingBit(CANx, CAN_IT_FOV0);
-        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Overrun);
+        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Overrun, STM32F4_Time_GetCurrentProcessorTime());
 
         return true;
     }
     else if (CAN_GetITStatus(CANx, CAN_IT_BOF)) {
         CAN_ClearITPendingBit(CANx, CAN_IT_BOF);
-        state->errorEventHandler(state->provider, TinyCLR_Can_Error::BusOff);
+        state->errorEventHandler(state->provider, TinyCLR_Can_Error::BusOff, STM32F4_Time_GetCurrentProcessorTime());
 
         return true;
     }
     else if (CAN_GetITStatus(CANx, CAN_IT_EPV)) {
         CAN_ClearITPendingBit(CANx, CAN_IT_EPV);
-        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive);
+        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive, STM32F4_Time_GetCurrentProcessorTime());
 
         return true;
     }
@@ -1018,13 +1018,13 @@ bool CAN_ErrorHandler(uint8_t controllerIndex) {
     }
     else if (CAN_GetITStatus(CANx, CAN_IT_ERR)) {
         CAN_ClearITPendingBit(CANx, CAN_IT_ERR);
-        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive);
+        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive, STM32F4_Time_GetCurrentProcessorTime());
 
         return true;
     }
     else if (CAN_GetITStatus(CANx, CAN_IT_EWG)) {
         CAN_ClearITPendingBit(CANx, CAN_IT_EWG);
-        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive);
+        state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive, STM32F4_Time_GetCurrentProcessorTime());
     }
 
     return false;
@@ -1113,10 +1113,6 @@ TinyCLR_Result STM32F4_Can_SetWriteBufferSize(const TinyCLR_Can_Controller* self
     return size == 1 ? TinyCLR_Result::Success : TinyCLR_Result::NotSupported;
 }
 
-uint32_t STM32_Can_GetLocalTime() {
-    return STM32F4_Time_GetTimeForProcessorTicks(nullptr, STM32F4_Time_GetCurrentProcessorTicks(nullptr));
-}
-
 void STM32_Can_RxInterruptHandler(int32_t controllerIndex) {
     DISABLE_INTERRUPTS_SCOPED(irq);
 
@@ -1180,7 +1176,7 @@ void STM32_Can_RxInterruptHandler(int32_t controllerIndex) {
 
     STM32F4_Can_Message *can_msg = &state->canRxMessagesFifo[state->can_rx_in];
 
-    uint64_t t = STM32_Can_GetLocalTime();
+    uint64_t t = STM32F4_Time_GetCurrentProcessorTime();
 
     can_msg->TimeStampL = t & 0xFFFFFFFF;
 
@@ -1205,7 +1201,7 @@ void STM32_Can_RxInterruptHandler(int32_t controllerIndex) {
         state->can_rx_in = 0;
     }
 
-    state->messageReceivedEventHandler(state->provider, state->can_rx_count);
+    state->messageReceivedEventHandler(state->provider, state->can_rx_count, t);
 
     return;
 }
@@ -1251,10 +1247,9 @@ TinyCLR_Result STM32F4_Can_Acquire(const TinyCLR_Can_Controller* self) {
         state->baudrate = 0;
         state->can_rxBufferSize = canDefaultBuffersSize[controllerIndex];
         state->provider = self;
+        state->enable = false;
 
         state->canRxMessagesFifo = nullptr;
-
-        state->isOpened = true;
     }
 
     state->initializeCount++;
@@ -1285,12 +1280,8 @@ TinyCLR_Result STM32F4_Can_Release(const TinyCLR_Can_Controller* self) {
             state->canRxMessagesFifo = nullptr;
         }
 
-        if (state->isOpened) {
-            STM32F4_GpioInternal_ClosePin(canTxPins[controllerIndex].number);
-            STM32F4_GpioInternal_ClosePin(canRxPins[controllerIndex].number);
-        }
-
-        state->isOpened = false;
+        STM32F4_GpioInternal_ClosePin(canTxPins[controllerIndex].number);
+        STM32F4_GpioInternal_ClosePin(canRxPins[controllerIndex].number);
     }
 
     return TinyCLR_Result::Success;
@@ -1324,7 +1315,16 @@ TinyCLR_Result STM32F4_Can_SoftReset(const TinyCLR_Can_Controller* self) {
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result STM32F4_Can_WriteMessage(const TinyCLR_Can_Controller* self, uint32_t arbitrationId, bool isExtendedId, bool isRemoteTransmissionRequest, const uint8_t* data, size_t length) {
+TinyCLR_Result STM32F4_Can_WriteMessage(const TinyCLR_Can_Controller* self, const TinyCLR_Can_Message* messages, size_t& len) {
+    if (len != 1) return TinyCLR_Result::NotSupported;
+
+    auto& m = messages[0];
+    uint32_t arbitrationId = m.ArbitrationId;
+    bool isExtendedId = m.IsExtendedId;
+    bool isRemoteTransmissionRequest = m.IsRemoteTransmissionRequest;
+    const uint8_t* data = m.Data;
+    size_t length = m.Length;
+
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
 
     int32_t controllerIndex = state->controllerIndex;
@@ -1376,7 +1376,17 @@ TinyCLR_Result STM32F4_Can_WriteMessage(const TinyCLR_Can_Controller* self, uint
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result STM32F4_Can_ReadMessage(const TinyCLR_Can_Controller* self, uint32_t& arbitrationId, bool& isExtendedId, bool& isRemoteTransmissionRequest, uint8_t* data, size_t& length, uint64_t& timestamp) {
+TinyCLR_Result STM32F4_Can_ReadMessage(const TinyCLR_Can_Controller* self, TinyCLR_Can_Message* messages, size_t& len) {
+    if (len != 1) return TinyCLR_Result::NotSupported;
+
+    auto& m = messages[0];
+    uint32_t& arbitrationId = m.ArbitrationId;
+    bool& isExtendedId = m.IsExtendedId;
+    bool& isRemoteTransmissionRequest = m.IsRemoteTransmissionRequest;
+    uint8_t* data = m.Data;
+    size_t& length = m.Length;
+    uint64_t& timestamp = m.Timestamp;
+
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
 
     STM32F4_Can_Message *can_msg;
@@ -1408,7 +1418,13 @@ TinyCLR_Result STM32F4_Can_ReadMessage(const TinyCLR_Can_Controller* self, uint3
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result STM32F4_Can_SetBitTiming(const TinyCLR_Can_Controller* self, uint32_t propagation, uint32_t phase1, uint32_t phase2, uint32_t baudratePrescaler, uint32_t synchronizationJumpWidth, bool useMultiBitSampling) {
+TinyCLR_Result STM32F4_Can_SetBitTiming(const TinyCLR_Can_Controller* self, const TinyCLR_Can_BitTiming* timing) {
+    uint32_t propagation = timing->Propagation;
+    uint32_t phase1 = timing->Phase1;
+    uint32_t phase2 = timing->Phase2;
+    uint32_t baudratePrescaler = timing->BaudratePrescaler;
+    uint32_t synchronizationJumpWidth = timing->SynchronizationJumpWidth;
+    bool useMultiBitSampling = timing->UseMultiBitSampling;
     auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
 
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
@@ -1623,24 +1639,35 @@ void STM32F4_Can_Reset() {
 
         STM32F4_Can_Release(&canControllers[i]);
 
-        canStates[i].isOpened = false;
         canStates[i].initializeCount = 0;
     }
 }
 
 TinyCLR_Result STM32F4_Can_Enable(const TinyCLR_Can_Controller* self) {
-    return TinyCLR_Result::NotImplemented;
+    auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
+    state->enable = true;
+
+    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F4_Can_Disable(const TinyCLR_Can_Controller* self) {
-    return TinyCLR_Result::NotImplemented;
+    auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
+    state->enable = false;
+
+    return TinyCLR_Result::Success;
 }
 
 bool STM32F4_Can_CanWriteMessage(const TinyCLR_Can_Controller* self) {
-    return true;
+    auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
+    bool canWrite;
+
+    STM32F4_Can_IsWritingAllowed(self, canWrite);
+    return (state->enable && canWrite);
 }
 
 bool STM32F4_Can_CanReadMessage(const TinyCLR_Can_Controller* self) {
-    return true;
+    auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
+
+    return (state->enable);
 }
 #endif // INCLUDE_CAN

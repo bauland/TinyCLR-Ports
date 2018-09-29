@@ -73,53 +73,30 @@ void STM32F7_Power_AddApi(const TinyCLR_Api_Manager* apiManager) {
     apiManager->SetDefaultName(apiManager, TinyCLR_Api_Type::PowerController, powerApi[0].Name);
 }
 
-void STM32F7_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level) {
-    uint32_t tmpreg = 0;
+TinyCLR_Result STM32F7_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource) {
     switch (level) {
+    case TinyCLR_Power_SleepLevel::Level1:
+    case TinyCLR_Power_SleepLevel::Level2:
+    case TinyCLR_Power_SleepLevel::Level3:
+    case TinyCLR_Power_SleepLevel::Level4:
+        //TODO
+        return TinyCLR_Result::NotSupported;
 
-    case TinyCLR_Power_SleepLevel::Hibernate: // stop
-        /* Select the regulator state in Stop mode ---------------------------------*/
-        tmpreg = PWR->CR1;
-        /* Clear PDDS and LPDS bits */
-        tmpreg &= (uint32_t)~(PWR_CR1_PDDS | PWR_CR1_LPDS);
+    case TinyCLR_Power_SleepLevel::Level0:
+        if (wakeSource != TinyCLR_Power_SleepWakeSource::Gpio && wakeSource != TinyCLR_Power_SleepWakeSource::SystemTimer)
+            return TinyCLR_Result::NotSupported;
 
-        /* Set LPDS, MRLVDS and LPLVDS bits according to PWR_LOWPOWERREGULATOR_ON value */
-        tmpreg |= PWR_LOWPOWERREGULATOR_ON;
-
-        /* Store the new value */
-        PWR->CR1 = tmpreg;
-
-        /* Set SLEEPDEEP bit of Cortex System Control Register */
-        SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
-
-        /* Request Wait For Interrupt */
-        __WFI();
-
-        return;
-
-    case TinyCLR_Power_SleepLevel::Off: // standby
-        /* Select Standby mode */
-        PWR->CR1 |= PWR_CR1_PDDS;
-
-        /* Set SLEEPDEEP bit of Cortex System Control Register */
-        SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
-
-        /* Request Wait For Interrupt */
-        __WFI();
-
-        return;
-
-    default: // sleep
+    default:
         CLEAR_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
 
         /* Request Wait For Interrupt */
         __WFI();
 
-        return;
+        return TinyCLR_Result::Success;
     }
 }
 
-void STM32F7_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter) {
+TinyCLR_Result STM32F7_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter) {
 #if defined BOOTLOADER_HOLD_VALUE && defined BOOTLOADER_HOLD_ADDRESS && BOOTLOADER_HOLD_ADDRESS > 0
     if (!runCoreAfter)
         *((uint32_t*)BOOTLOADER_HOLD_ADDRESS) = BOOTLOADER_HOLD_VALUE;
@@ -129,6 +106,8 @@ void STM32F7_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter
         | (1 << SCB_AIRCR_SYSRESETREQ_Pos); // reset request
 
     while (1); // wait for reset
+
+    TinyCLR_Result::InvalidOperation;
 }
 
 TinyCLR_Result STM32F7_Power_Initialize(const TinyCLR_Power_Controller* self) {

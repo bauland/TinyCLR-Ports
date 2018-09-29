@@ -103,7 +103,7 @@ bool TimeState::Initialize(uint32_t timer, uint32_t* ISR, void* ISR_Param) {
     //--//
 
     if (ISR) {
-        if (!LPC24_Interrupt_Activate(LPC24XX_TIMER::getIntNo(timer), ISR, ISR_Param)) return false;
+        if (!LPC24_InterruptInternal_Activate(LPC24XX_TIMER::getIntNo(timer), ISR, ISR_Param)) return false;
     }
 
     LPC24XX_TIMER& TIMER = LPC24XX::TIMER(timer);
@@ -126,7 +126,7 @@ bool TimeState::Uninitialize(uint32_t timer) {
 
     //--//
 
-    if (!LPC24_Interrupt_Deactivate(LPC24XX_TIMER::getIntNo(timer))) return false;
+    if (!LPC24_InterruptInternal_Deactivate(LPC24XX_TIMER::getIntNo(timer))) return false;
 
     LPC24XX_TIMER& TIMER = LPC24XX::TIMER(timer);
 
@@ -253,6 +253,10 @@ uint64_t LPC24_Time_GetTimeForProcessorTicks(const TinyCLR_NativeTime_Controller
 
 uint64_t LPC24_Time_GetProcessorTicksForTime(const TinyCLR_NativeTime_Controller* self, uint64_t time) {
     return LPC24_Time_MicrosecondsToTicks(self, time / 10);
+}
+
+uint64_t LPC24_Time_GetCurrentProcessorTime() {
+    return LPC24_Time_GetTimeForProcessorTicks(nullptr, LPC24_Time_GetCurrentProcessorTicks(nullptr));
 }
 
 uint64_t LPC24_Time_MillisecondsToTicks(const TinyCLR_NativeTime_Controller* self, uint64_t ticks) {

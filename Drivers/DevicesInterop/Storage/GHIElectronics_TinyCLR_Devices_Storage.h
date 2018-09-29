@@ -4,6 +4,7 @@
 
 struct Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_PresenceChangedEventArgs {
     static const size_t FIELD___Present__BackingField___BOOLEAN = 1;
+    static const size_t FIELD___Timestamp__BackingField___mscorlibSystemDateTime = 2;
 };
 
 struct Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper {
@@ -35,10 +36,11 @@ struct Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Dev
     static const size_t FIELD___CanExecuteDirect__BackingField___BOOLEAN = 3;
     static const size_t FIELD___EraseBeforeWrite__BackingField___BOOLEAN = 4;
     static const size_t FIELD___Removable__BackingField___BOOLEAN = 5;
-    static const size_t FIELD___RegionsRepeat__BackingField___BOOLEAN = 6;
-    static const size_t FIELD___RegionCount__BackingField___I4 = 7;
-    static const size_t FIELD___RegionAddresses__BackingField___SZARRAY_I8 = 8;
-    static const size_t FIELD___RegionSizes__BackingField___SZARRAY_I4 = 9;
+    static const size_t FIELD___RegionsContiguous__BackingField___BOOLEAN = 6;
+    static const size_t FIELD___RegionsEqualSized__BackingField___BOOLEAN = 7;
+    static const size_t FIELD___RegionCount__BackingField___I4 = 8;
+    static const size_t FIELD___RegionAddresses__BackingField___SZARRAY_I8 = 9;
+    static const size_t FIELD___RegionSizes__BackingField___SZARRAY_I4 = 10;
 };
 
 extern const TinyCLR_Interop_Assembly Interop_GHIElectronics_TinyCLR_Devices_Storage;

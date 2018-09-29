@@ -48,9 +48,9 @@ void LPC17_Can_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result LPC17_Can_Acquire(const TinyCLR_Can_Controller* self);
 TinyCLR_Result LPC17_Can_Release(const TinyCLR_Can_Controller* self);
 TinyCLR_Result LPC17_Can_SoftReset(const TinyCLR_Can_Controller* self);
-TinyCLR_Result LPC17_Can_WriteMessage(const TinyCLR_Can_Controller* self, uint32_t arbitrationId, bool isExtendedId, bool isRemoteTransmissionRequest, const uint8_t* data, size_t length);
-TinyCLR_Result LPC17_Can_ReadMessage(const TinyCLR_Can_Controller* self, uint32_t& arbitrationId, bool& isExtendedId, bool& isRemoteTransmissionRequest, uint8_t* data, size_t& length, uint64_t& timestamp);
-TinyCLR_Result LPC17_Can_SetBitTiming(const TinyCLR_Can_Controller* self, uint32_t propagation, uint32_t phase1, uint32_t phase2, uint32_t baudratePrescaler, uint32_t synchronizationJumpWidth, bool useMultiBitSampling);
+TinyCLR_Result LPC17_Can_WriteMessage(const TinyCLR_Can_Controller* self, const TinyCLR_Can_Message* messages, size_t& length);
+TinyCLR_Result LPC17_Can_ReadMessage(const TinyCLR_Can_Controller* self, TinyCLR_Can_Message* messages, size_t& length);
+TinyCLR_Result LPC17_Can_SetBitTiming(const TinyCLR_Can_Controller* self, const TinyCLR_Can_BitTiming* timing);
 size_t LPC17_Can_GetMessagesToRead(const TinyCLR_Can_Controller* self);
 size_t LP17_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self);
 TinyCLR_Result LPC17_Can_SetMessageReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_MessageReceivedHandler handler);
@@ -198,6 +198,8 @@ struct PwmState {
 
     double                          frequency;
     double                          dutyCycle[MAX_PWM_PER_CONTROLLER];
+
+    uint16_t initializeCount;
 };
 
 void LPC17_Pwm_AddApi(const TinyCLR_Api_Manager* apiManager);
@@ -224,6 +226,7 @@ LPC17_Gpio_Pin LPC17_Pwm_GetPins(int32_t controllerIndex, int32_t channel);
 void LPC17_Rtc_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result LPC17_Rtc_Acquire(const TinyCLR_Rtc_Controller* self);
 TinyCLR_Result LPC17_Rtc_Release(const TinyCLR_Rtc_Controller* self);
+TinyCLR_Result LPC17_Rtc_IsValid(const TinyCLR_Rtc_Controller* self, bool& value);
 TinyCLR_Result LPC17_Rtc_GetTime(const TinyCLR_Rtc_Controller* self, TinyCLR_Rtc_DateTime& value);
 TinyCLR_Result LPC17_Rtc_SetTime(const TinyCLR_Rtc_Controller* self, TinyCLR_Rtc_DateTime value);
 
@@ -257,7 +260,7 @@ bool LPC17_Spi_Transaction_Stop(int32_t controllerIndex);
 bool LPC17_Spi_Transaction_nWrite8_nRead8(int32_t controllerIndex);
 TinyCLR_Result LPC17_Spi_Acquire(const TinyCLR_Spi_Controller* self);
 TinyCLR_Result LPC17_Spi_Release(const TinyCLR_Spi_Controller* self);
-TinyCLR_Result LPC17_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, uint32_t chipSelectLine, bool useControllerChipSelect, uint32_t clockFrequency, uint32_t dataBitLength, TinyCLR_Spi_Mode mode);
+TinyCLR_Result LPC17_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, const TinyCLR_Spi_Settings* settings);
 TinyCLR_Result LPC17_Spi_Read(const TinyCLR_Spi_Controller* self, uint8_t* buffer, size_t& length);
 TinyCLR_Result LPC17_Spi_Write(const TinyCLR_Spi_Controller* self, const uint8_t* buffer, size_t& length);
 TinyCLR_Result LPC17_Spi_WriteRead(const TinyCLR_Spi_Controller* self, const uint8_t* writeBuffer, size_t& writeLength, uint8_t* readBuffer, size_t& readLength, bool deselectAfter);
@@ -279,7 +282,7 @@ LPC17_Gpio_PinFunction LPC17_Uart_GetTxAlternateFunction(int32_t controllerIndex
 LPC17_Gpio_PinFunction LPC17_Uart_GetRxAlternateFunction(int32_t controllerIndex);
 LPC17_Gpio_PinFunction LPC17_Uart_GetRtsAlternateFunction(int32_t controllerIndex);
 LPC17_Gpio_PinFunction LPC17_Uart_GetCtsAlternateFunction(int32_t controllerIndex);
-bool LPC17_Uart_TxHandshakeEnabledState(int controllerIndex);
+bool LPC17_Uart_CanSend(int controllerIndex);
 void LPC17_Uart_TxBufferEmptyInterruptEnable(int controllerIndex, bool enable);
 void LPC17_Uart_RxBufferFullInterruptEnable(int controllerIndex, bool enable);
 
@@ -287,7 +290,7 @@ TinyCLR_Result LPC17_Uart_Acquire(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result LPC17_Uart_Release(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result LPC17_Uart_Enable(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result LPC17_Uart_Disable(const TinyCLR_Uart_Controller* self);
-TinyCLR_Result LPC17_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, uint32_t baudRate, uint32_t dataBits, TinyCLR_Uart_Parity parity, TinyCLR_Uart_StopBitCount stopBits, TinyCLR_Uart_Handshake handshaking);
+TinyCLR_Result LPC17_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, const TinyCLR_Uart_Settings* settings);
 TinyCLR_Result LPC17_Uart_Flush(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result LPC17_Uart_Read(const TinyCLR_Uart_Controller* self, uint8_t* buffer, size_t& length);
 TinyCLR_Result LPC17_Uart_Write(const TinyCLR_Uart_Controller* self, const uint8_t* buffer, size_t& length);
@@ -323,49 +326,41 @@ TinyCLR_Result LPC17_Deployment_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result LPC17_Deployment_Close(const TinyCLR_Storage_Controller* self);
 
 // Interrupt
-class LPC17_SmartPtr_IRQ {
-    uint32_t m_state;
-
-    void Disable();
-    void Restore();
+////////////////////////////////////////////////////////////////////////////////
+//Interrupt Internal
+////////////////////////////////////////////////////////////////////////////////
+class LPC17_DisableInterrupts_RaiiHelper {
+    uint32_t state;
 
 public:
-    LPC17_SmartPtr_IRQ();
-    ~LPC17_SmartPtr_IRQ();
+    LPC17_DisableInterrupts_RaiiHelper();
+    ~LPC17_DisableInterrupts_RaiiHelper();
 
     bool IsDisabled();
     void Acquire();
     void Release();
-    void Probe();
-
-    static bool GetState();
 };
 
-class LPC17_SmartPtr_Interrupt {
+class LPC17_InterruptStarted_RaiiHelper {
 public:
-    LPC17_SmartPtr_Interrupt();
-    ~LPC17_SmartPtr_Interrupt();
+    LPC17_InterruptStarted_RaiiHelper();
+    ~LPC17_InterruptStarted_RaiiHelper();
 };
 
-#define DISABLE_INTERRUPTS_SCOPED(name) LPC17_SmartPtr_IRQ name
-#define INTERRUPT_STARTED_SCOPED(name) LPC17_SmartPtr_Interrupt name
+#define DISABLE_INTERRUPTS_SCOPED(name) LPC17_DisableInterrupts_RaiiHelper name
+#define INTERRUPT_STARTED_SCOPED(name) LPC17_InterruptStarted_RaiiHelper name
+
+bool LPC17_InterruptInternal_Activate(uint32_t index, uint32_t* isr, void* isrParam);
+bool LPC17_InterruptInternal_Deactivate(uint32_t index);
 
 void LPC17_Interrupt_AddApi(const TinyCLR_Api_Manager* apiManager);
 const TinyCLR_Api_Info* LPC17_Interrupt_GetRequiredApi();
 TinyCLR_Result LPC17_Interrupt_Initialize(const TinyCLR_Interrupt_Controller* self, TinyCLR_Interrupt_StartStopHandler onInterruptStart, TinyCLR_Interrupt_StartStopHandler onInterruptEnd);
 TinyCLR_Result LPC17_Interrupt_Uninitialize(const TinyCLR_Interrupt_Controller* self);
-bool LPC17_Interrupt_Activate(uint32_t Irq_Index, uint32_t *handler, void* ISR_Param);
-bool LPC17_Interrupt_Deactivate(uint32_t Irq_Index);
-bool LPC17_Interrupt_Enable(uint32_t Irq_Index);
-bool LPC17_Interrupt_Disable(uint32_t Irq_Index);
-bool LPC17_Interrupt_EnableState(uint32_t Irq_Index);
-bool LPC17_Interrupt_InterruptState(uint32_t Irq_Index);
-
-bool LPC17_Interrupt_GlobalEnabled(bool force);
-bool LPC17_Interrupt_GlobalDisabled(bool force);
-void LPC17_Interrupt_GlobalRestore();
-bool LPC17_Interrupt_GlobalIsDisabled();
-void LPC17_Interrupt_GlobalWaitForInterrupt();
+void LPC17_Interrupt_Enable();
+void LPC17_Interrupt_Disable();
+void LPC17_Interrupt_WaitForInterrupt();
+bool LPC17_Interrupt_IsDisabled();
 
 extern TinyCLR_Interrupt_StartStopHandler LPC17_Interrupt_Started;
 extern TinyCLR_Interrupt_StartStopHandler LPC17_Interrupt_Ended;
@@ -375,7 +370,7 @@ void LPC17_I2c_AddApi(const TinyCLR_Api_Manager* apiManager);
 void LPC17_I2c_Reset();
 TinyCLR_Result LPC17_I2c_Acquire(const TinyCLR_I2c_Controller* self);
 TinyCLR_Result LPC17_I2c_Release(const TinyCLR_I2c_Controller* self);
-TinyCLR_Result LPC17_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, uint32_t slaveAddress, TinyCLR_I2c_AddressFormat addressFormat, TinyCLR_I2c_BusSpeed busSpeed);
+TinyCLR_Result LPC17_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, const TinyCLR_I2c_Settings* settings);
 TinyCLR_Result LPC17_I2c_WriteRead(const TinyCLR_I2c_Controller* self, const uint8_t* writeBuffer, size_t& writeLength, uint8_t* readBuffer, size_t& readLength, bool sendStartCondition, bool sendStopCondition, TinyCLR_I2c_TransferStatus& error);
 void LPC17_I2c_StartTransaction(int32_t channel);
 void LPC17_I2c_StopTransaction(int32_t channel);
@@ -386,6 +381,7 @@ const TinyCLR_Api_Info* LPC17_Time_GetRequiredApi();
 TinyCLR_Result LPC17_Time_Initialize(const TinyCLR_NativeTime_Controller* self);
 TinyCLR_Result LPC17_Time_Uninitialize(const TinyCLR_NativeTime_Controller* self);
 uint64_t LPC17_Time_GetCurrentProcessorTicks(const TinyCLR_NativeTime_Controller* self);
+uint64_t LPC17_Time_GetCurrentProcessorTime();
 uint64_t LPC17_Time_GetTimeForProcessorTicks(const TinyCLR_NativeTime_Controller* self, uint64_t ticks);
 uint64_t LPC17_Time_GetProcessorTicksForTime(const TinyCLR_NativeTime_Controller* self, uint64_t time);
 TinyCLR_Result LPC17_Time_SetTickCallback(const TinyCLR_NativeTime_Controller* self, TinyCLR_NativeTime_Callback callback);
@@ -397,8 +393,8 @@ void LPC17_Time_DelayNative(const TinyCLR_NativeTime_Controller* self, uint64_t 
 void LPC17_Power_AddApi(const TinyCLR_Api_Manager* apiManager);
 const TinyCLR_Api_Info* LPC17_Power_GetRequiredApi();
 void LPC17_Power_SetHandlers(void(*stop)(), void(*restart)());
-void LPC17_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level);
-void LPC17_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
+TinyCLR_Result LPC17_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource);
+TinyCLR_Result LPC17_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
 TinyCLR_Result LPC17_Power_Initialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result LPC17_Power_Uninitialize(const TinyCLR_Power_Controller* self);
 

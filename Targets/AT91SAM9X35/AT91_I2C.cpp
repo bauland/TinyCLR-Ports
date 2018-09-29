@@ -32,8 +32,6 @@ struct I2cState {
 
     I2cConfiguration i2cConfiguration;
 
-    bool isOpened;
-
     uint16_t initializeCount;
 };
 
@@ -344,7 +342,10 @@ TinyCLR_Result AT91_I2c_WriteRead(const TinyCLR_I2c_Controller* self, const uint
 #define MIN_CLK_RATE    (AT91_SYSTEM_PERIPHERAL_CLOCK_HZ/1000)/(128 *255+CLOCK_RATE_CONSTANT)
 #define MAX_CLK_RATE    400   //kHz
 
-TinyCLR_Result AT91_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, uint32_t slaveAddress, TinyCLR_I2c_AddressFormat addressFormat, TinyCLR_I2c_BusSpeed busSpeed) {
+TinyCLR_Result AT91_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, const TinyCLR_I2c_Settings* settings) {
+    uint32_t slaveAddress = settings->SlaveAddress;
+    TinyCLR_I2c_AddressFormat addressFormat = settings->AddressFormat;
+    TinyCLR_I2c_BusSpeed busSpeed = settings->BusSpeed;
     uint32_t rateKhz;
     uint8_t clockRate, clockRate2;
 
@@ -415,18 +416,15 @@ TinyCLR_Result AT91_I2c_Acquire(const TinyCLR_I2c_Controller* self) {
         AT91_I2C& I2C = AT91::I2C(controllerIndex);
         AT91_PMC &pmc = AT91::PMC();
 
-        if (!state->isOpened) {
-            if (!AT91_Gpio_OpenPin(i2cSdaPins[controllerIndex].number) || !AT91_Gpio_OpenPin(i2cSclPins[controllerIndex].number))
-                return TinyCLR_Result::SharingViolation;
+        if (!AT91_Gpio_OpenPin(i2cSdaPins[controllerIndex].number) || !AT91_Gpio_OpenPin(i2cSclPins[controllerIndex].number))
+            return TinyCLR_Result::SharingViolation;
 
-            AT91_Gpio_ConfigurePin(i2cSdaPins[controllerIndex].number, AT91_Gpio_Direction::Input, i2cSdaPins[controllerIndex].peripheralSelection, AT91_Gpio_ResistorMode::Inactive);
-            AT91_Gpio_ConfigurePin(i2cSclPins[controllerIndex].number, AT91_Gpio_Direction::Input, i2cSclPins[controllerIndex].peripheralSelection, AT91_Gpio_ResistorMode::Inactive);
+        AT91_Gpio_ConfigurePin(i2cSclPins[controllerIndex].number, AT91_Gpio_Direction::Input, i2cSclPins[controllerIndex].peripheralSelection, AT91_Gpio_ResistorMode::Inactive);
+        AT91_Gpio_ConfigurePin(i2cSdaPins[controllerIndex].number, AT91_Gpio_Direction::Input, i2cSdaPins[controllerIndex].peripheralSelection, AT91_Gpio_ResistorMode::Inactive);
 
-            pmc.EnablePeriphClock(controllerIndex == 0 ? AT91C_ID_TWI0 : (controllerIndex == 1 ? AT91C_ID_TWI1 : AT91C_ID_TWI2));
-            I2C.TWI_MMR = 0x7e << AT91_I2C::TWI_MMR_DADR_SHIFT;
+        pmc.EnablePeriphClock(controllerIndex == 0 ? AT91C_ID_TWI0 : (controllerIndex == 1 ? AT91C_ID_TWI1 : AT91C_ID_TWI2));
+        I2C.TWI_MMR = 0x7e << AT91_I2C::TWI_MMR_DADR_SHIFT;
 
-            state->isOpened = true;
-        }
     }
 
     state->initializeCount++;
@@ -451,7 +449,7 @@ TinyCLR_Result AT91_I2c_Release(const TinyCLR_I2c_Controller* self) {
 
         I2C.TWI_CR = AT91_I2C::TWI_CR_SWRST;
 
-        AT91_Interrupt_Disable(controllerIndex == 0 ? AT91C_ID_TWI0 : (controllerIndex == 1 ? AT91C_ID_TWI1 : AT91C_ID_TWI2));
+        AT91_InterruptInternal_Deactivate(controllerIndex == 0 ? AT91C_ID_TWI0 : (controllerIndex == 1 ? AT91C_ID_TWI1 : AT91C_ID_TWI2));
 
         AT91_PMC &pmc = AT91::PMC();
         pmc.DisablePeriphClock(controllerIndex == 0 ? AT91C_ID_TWI0 : (controllerIndex == 1 ? AT91C_ID_TWI1 : AT91C_ID_TWI2));
@@ -462,13 +460,8 @@ TinyCLR_Result AT91_I2c_Release(const TinyCLR_I2c_Controller* self) {
         // disable all the interrupt
         I2C.TWI_IDR = AT91_I2C::TWI_IDR_NACK | AT91_I2C::TWI_IDR_RXRDY | AT91_I2C::TWI_IDR_TXCOMP | AT91_I2C::TWI_IDR_TXRDY;
 
-
-        state->isOpened = false;
-
-        if (state->isOpened) {
-            AT91_Gpio_ClosePin(i2cSdaPins[controllerIndex].number);
-            AT91_Gpio_ClosePin(i2cSclPins[controllerIndex].number);
-        }
+        AT91_Gpio_ClosePin(i2cSdaPins[controllerIndex].number);
+        AT91_Gpio_ClosePin(i2cSclPins[controllerIndex].number);
     }
 
     return TinyCLR_Result::Success;
@@ -484,7 +477,6 @@ void AT91_I2c_Reset() {
         state->i2cConfiguration.clockRate = 0;
         state->i2cConfiguration.clockRate2 = 0;
 
-        state->isOpened = false;
         state->initializeCount = 0;
     }
 }

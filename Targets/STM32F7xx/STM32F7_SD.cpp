@@ -2663,8 +2663,6 @@ struct SdCardState {
 
     TinyCLR_Storage_Descriptor descriptor;
 
-    bool isOpened = false;
-
     uint16_t initializeCount;
 };
 
@@ -2752,7 +2750,8 @@ TinyCLR_Result STM32F7_SdCard_Acquire(const TinyCLR_Storage_Controller* self) {
         state->descriptor.CanExecuteDirect = false;
         state->descriptor.EraseBeforeWrite = false;
         state->descriptor.Removable = true;
-        state->descriptor.RegionsRepeat = true;
+        state->descriptor.RegionsContiguous = false;
+        state->descriptor.RegionsEqualSized = false;
 
         state->descriptor.RegionAddresses = reinterpret_cast<const uint64_t*>(state->regionAddresses);
         state->descriptor.RegionSizes = reinterpret_cast<const size_t*>(state->regionSizes);
@@ -2763,7 +2762,6 @@ TinyCLR_Result STM32F7_SdCard_Acquire(const TinyCLR_Storage_Controller* self) {
 
     tryinit:
         if (SD_Init() == SD_OK) {
-            state->isOpened = true;
             state->initializeCount++;
 
             return TinyCLR_Result::Success;
@@ -2801,12 +2799,10 @@ TinyCLR_Result STM32F7_SdCard_Release(const TinyCLR_Storage_Controller* self) {
 
         RCC->APB2ENR &= ~(1 << 11);
 
-        if (state->isOpened) {
-            auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
+        auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
 
-            memoryProvider->Free(memoryProvider, state->regionSizes);
-            memoryProvider->Free(memoryProvider, state->regionAddresses);
-        }
+        memoryProvider->Free(memoryProvider, state->regionSizes);
+        memoryProvider->Free(memoryProvider, state->regionAddresses);
 
         STM32F7_GpioInternal_ClosePin(d0.number);
         STM32F7_GpioInternal_ClosePin(d1.number);
@@ -2814,8 +2810,6 @@ TinyCLR_Result STM32F7_SdCard_Release(const TinyCLR_Storage_Controller* self) {
         STM32F7_GpioInternal_ClosePin(d3.number);
         STM32F7_GpioInternal_ClosePin(clk.number);
         STM32F7_GpioInternal_ClosePin(cmd.number);
-
-        state->isOpened = false;
     }
 
     return TinyCLR_Result::Success;

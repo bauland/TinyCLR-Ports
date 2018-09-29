@@ -332,7 +332,7 @@ TinyCLR_Result LPC24_Deployment_GetDescriptor(const TinyCLR_Storage_Controller* 
 
     descriptor = &state->storageDescriptor;
 
-    return descriptor->RegionCount > 0 ? TinyCLR_Result::Success : TinyCLR_Result::NotImplemented;
+    return descriptor->RegionCount > 0 ? TinyCLR_Result::Success : TinyCLR_Result::NotAvailable;
 }
 
 TinyCLR_Result LPC24_Deployment_Reset(const TinyCLR_Storage_Controller* self) {
@@ -350,7 +350,8 @@ TinyCLR_Result LPC24_Deployment_Open(const TinyCLR_Storage_Controller* self) {
     state->storageDescriptor.CanExecuteDirect = true;
     state->storageDescriptor.EraseBeforeWrite = true;
     state->storageDescriptor.Removable = false;
-    state->storageDescriptor.RegionsRepeat = true;
+    state->storageDescriptor.RegionsContiguous = false;
+    state->storageDescriptor.RegionsEqualSized = false;
 
     for (auto i = 0; i < DEPLOYMENT_SECTOR_NUM; i++) {
         state->regionAddresses[i] = flashAddresses[DEPLOYMENT_SECTOR_START + i];
@@ -364,6 +365,8 @@ TinyCLR_Result LPC24_Deployment_Open(const TinyCLR_Storage_Controller* self) {
     state->deploymentConfiguration.RegionCount = state->storageDescriptor.RegionCount;
     state->deploymentConfiguration.RegionAddresses = state->storageDescriptor.RegionAddresses;
     state->deploymentConfiguration.RegionSizes = state->storageDescriptor.RegionSizes;
+    state->deploymentConfiguration.RegionsContiguous = false;
+    state->deploymentConfiguration.RegionsEqualSized = false;
 
     state->isOpened = true;
 

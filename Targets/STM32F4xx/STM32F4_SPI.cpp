@@ -63,7 +63,11 @@ struct SpiState {
     int32_t dataBitLength;
     int32_t clockFrequency;
 
-    bool isOpened;
+    uint32_t chipSelectSetupTime;
+    uint32_t chipSelectHoldTime;
+    TinyCLR_Spi_ChipSelectType chipSelectType;
+
+    bool chipSelectActiveState;
 
     TinyCLR_Spi_Mode spiMode;
 
@@ -117,16 +121,21 @@ void STM32F4_Spi_AddApi(const TinyCLR_Api_Manager* apiManager) {
 #endif
 #endif
 #endif
-
-
 }
 
 bool STM32F4_Spi_Transaction_Start(int32_t controllerIndex) {
     auto state = &spiStates[controllerIndex];
 
-    STM32F4_GpioInternal_WritePin(state->chipSelectLine, false);
+    STM32F4_GpioInternal_WritePin(state->chipSelectLine, state->chipSelectActiveState);
 
-    STM32F4_Time_Delay(nullptr, ((1000000 / (state->clockFrequency / 1000)) / 1000));
+    if (state->chipSelectSetupTime > 0) {
+        auto currentTicks = STM32F4_Time_GetCurrentProcessorTime();
+
+        while (STM32F4_Time_GetCurrentProcessorTime() - currentTicks < state->chipSelectSetupTime);
+    }
+    else {
+        STM32F4_Time_Delay(nullptr, ((1000000 / (state->clockFrequency / 1000)) / 1000));
+    }
 
     return true;
 }
@@ -138,9 +147,18 @@ bool STM32F4_Spi_Transaction_Stop(int32_t controllerIndex) {
 
     while (spi->SR & SPI_SR_BSY); // wait for completion
 
-    STM32F4_Time_Delay(nullptr, ((1000000 / (state->clockFrequency / 1000)) / 1000));
+    if (state->chipSelectHoldTime > 0) {
+        auto currentTicks = STM32F4_Time_GetCurrentProcessorTime();
 
-    STM32F4_GpioInternal_WritePin(state->chipSelectLine, true);
+        while (STM32F4_Time_GetCurrentProcessorTime() - currentTicks < state->chipSelectHoldTime);
+    }
+
+    else {
+        STM32F4_Time_Delay(nullptr, ((1000000 / (state->clockFrequency / 1000)) / 1000));
+    }
+
+    STM32F4_GpioInternal_WritePin(state->chipSelectLine, !state->chipSelectActiveState);
+
 
     return true;
 }
@@ -273,22 +291,38 @@ TinyCLR_Result STM32F4_Spi_Write(const TinyCLR_Spi_Controller* self, const uint8
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result STM32F4_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, uint32_t chipSelectLine, bool useControllerChipSelect, uint32_t clockFrequency, uint32_t dataBitLength, TinyCLR_Spi_Mode mode) {
+TinyCLR_Result STM32F4_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, const TinyCLR_Spi_Settings* settings) {
+    uint32_t chipSelectLine = settings->ChipSelectLine;
+    TinyCLR_Spi_ChipSelectType chipSelectType = settings->ChipSelectType;
+    uint32_t chipSelectSetupTime = settings->ChipSelectSetupTime;
+    uint32_t chipSelectHoldTime = settings->ChipSelectHoldTime;
+    bool chipSelectActiveState = settings->ChipSelectActiveState;
+    uint32_t clockFrequency = settings->ClockFrequency;
+    uint32_t dataBitLength = settings->DataBitLength;
+    TinyCLR_Spi_Mode mode = settings->Mode;
     auto state = reinterpret_cast<SpiState*>(self->ApiInfo->State);
 
     auto controllerIndex = state->controllerIndex;
 
-    if (state->chipSelectLine == chipSelectLine
-        && state->dataBitLength == dataBitLength
-        && state->spiMode == mode
-        && state->clockFrequency == clockFrequency) {
+    if (state->chipSelectLine == chipSelectLine &&
+        state->chipSelectType == chipSelectType &&
+        state->chipSelectSetupTime == chipSelectSetupTime &&
+        state->chipSelectHoldTime == chipSelectHoldTime &&
+        state->chipSelectActiveState == chipSelectActiveState &&
+        state->clockFrequency == clockFrequency &&
+        state->dataBitLength == dataBitLength &&
+        state->spiMode == mode) {
         return TinyCLR_Result::Success;
     }
 
     state->chipSelectLine = chipSelectLine;
+    state->chipSelectType = chipSelectType;
+    state->chipSelectSetupTime = chipSelectSetupTime;
+    state->chipSelectHoldTime = chipSelectHoldTime;
+    state->chipSelectActiveState = chipSelectActiveState;
+    state->clockFrequency = clockFrequency;
     state->dataBitLength = dataBitLength;
     state->spiMode = mode;
-    state->clockFrequency = clockFrequency;
 
     ptr_SPI_TypeDef spi = spiPortRegs[controllerIndex];
 
@@ -347,7 +381,7 @@ TinyCLR_Result STM32F4_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self,
         // CS setup
         STM32F4_GpioInternal_ConfigurePin(state->chipSelectLine, STM32F4_Gpio_PortMode::GeneralPurposeOutput, STM32F4_Gpio_OutputType::PushPull, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::None, STM32F4_Gpio_AlternateFunction::AF0);
 
-        STM32F4_GpioInternal_WritePin(state->chipSelectLine, true);
+        STM32F4_GpioInternal_WritePin(state->chipSelectLine, !state->chipSelectActiveState);
     }
 
     return TinyCLR_Result::Success;
@@ -421,8 +455,6 @@ TinyCLR_Result STM32F4_Spi_Acquire(const TinyCLR_Spi_Controller* self) {
         STM32F4_GpioInternal_ConfigurePin(sclk.number, STM32F4_Gpio_PortMode::AlternateFunction, STM32F4_Gpio_OutputType::PushPull, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::None, sclk.alternateFunction);
         STM32F4_GpioInternal_ConfigurePin(miso.number, STM32F4_Gpio_PortMode::AlternateFunction, STM32F4_Gpio_OutputType::PushPull, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::None, miso.alternateFunction);
         STM32F4_GpioInternal_ConfigurePin(mosi.number, STM32F4_Gpio_PortMode::AlternateFunction, STM32F4_Gpio_OutputType::PushPull, STM32F4_Gpio_OutputSpeed::VeryHigh, STM32F4_Gpio_PullDirection::None, mosi.alternateFunction);
-
-        state->isOpened = true;
     }
 
     state->initializeCount++;
@@ -478,23 +510,19 @@ TinyCLR_Result STM32F4_Spi_Release(const TinyCLR_Spi_Controller* self) {
 #endif
         }
 
-        if (state->isOpened) {
-            auto& sclk = spiClkPins[controllerIndex];
-            auto& miso = spiMisoPins[controllerIndex];
-            auto& mosi = spiMosiPins[controllerIndex];
+        auto& sclk = spiClkPins[controllerIndex];
+        auto& miso = spiMisoPins[controllerIndex];
+        auto& mosi = spiMosiPins[controllerIndex];
 
-            STM32F4_GpioInternal_ClosePin(sclk.number);
-            STM32F4_GpioInternal_ClosePin(miso.number);
-            STM32F4_GpioInternal_ClosePin(mosi.number);
+        STM32F4_GpioInternal_ClosePin(sclk.number);
+        STM32F4_GpioInternal_ClosePin(miso.number);
+        STM32F4_GpioInternal_ClosePin(mosi.number);
 
-            if (state->chipSelectLine != PIN_NONE) {
-                STM32F4_GpioInternal_ClosePin(state->chipSelectLine);
+        if (state->chipSelectLine != PIN_NONE) {
+            STM32F4_GpioInternal_ClosePin(state->chipSelectLine);
 
-                state->chipSelectLine = PIN_NONE;
-            }
+            state->chipSelectLine = PIN_NONE;
         }
-
-        state->isOpened = false;
     }
 
     return TinyCLR_Result::Success;
@@ -535,7 +563,6 @@ void STM32F4_Spi_Reset() {
     for (auto i = 0; i < TOTAL_SPI_CONTROLLERS; i++) {
         STM32F4_Spi_Release(&spiControllers[i]);
 
-        spiStates[i].isOpened = false;
         spiStates[i].initializeCount = 0;
     }
 }

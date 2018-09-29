@@ -341,7 +341,7 @@ void DMA_Init(void) {
 
     while (!(GPDMA_CONFIG & 0x01));
 
-    LPC24_Interrupt_Activate(LPC24XX_VIC::c_IRQ_INDEX_DMA, (uint32_t*)&DMAHandler, (void*)0);
+    LPC24_InterruptInternal_Activate(LPC24XX_VIC::c_IRQ_INDEX_DMA, (uint32_t*)&DMAHandler, (void*)0);
 }
 
 /******************************************************************************
@@ -1017,7 +1017,7 @@ void MCI_Init(void) {
 
     LPC24_Time_Delay(nullptr, 2000); // delay 2ms
 
-    LPC24_Interrupt_Activate(LPC24XX_VIC::c_IRQ_INDEX_SD, (uint32_t*)&MCI_IRQHandler, (void*)0);
+    LPC24_InterruptInternal_Activate(LPC24XX_VIC::c_IRQ_INDEX_SD, (uint32_t*)&MCI_IRQHandler, (void*)0);
 }
 
 /******************************************************************************
@@ -2146,8 +2146,6 @@ struct SdCardState {
 
     TinyCLR_Storage_Descriptor descriptor;
 
-    bool isOpened = false;
-
     uint16_t initializeCount;
 };
 
@@ -2233,15 +2231,14 @@ TinyCLR_Result LPC24_SdCard_Acquire(const TinyCLR_Storage_Controller* self) {
         state->descriptor.CanExecuteDirect = false;
         state->descriptor.EraseBeforeWrite = false;
         state->descriptor.Removable = true;
-        state->descriptor.RegionsRepeat = true;
+        state->descriptor.RegionsContiguous = false;
+        state->descriptor.RegionsEqualSized = false;
 
         state->descriptor.RegionAddresses = reinterpret_cast<const uint64_t*>(state->regionAddresses);
         state->descriptor.RegionSizes = reinterpret_cast<const size_t*>(state->regionSizes);
 
         if (!MCI_And_Card_initialize())
             return TinyCLR_Result::InvalidOperation;
-
-        state->isOpened = true;
     }
 
     state->initializeCount++;
@@ -2270,14 +2267,12 @@ TinyCLR_Result LPC24_SdCard_Release(const TinyCLR_Storage_Controller* self) {
 
         LPC24XX::SYSCON().PCONP &= ~(1 << 29); /* Disable clock to the Dma block */
 
-        LPC24_Interrupt_Deactivate(LPC24XX_VIC::c_IRQ_INDEX_SD); /* Disable Interrupt */
+        LPC24_InterruptInternal_Deactivate(LPC24XX_VIC::c_IRQ_INDEX_SD); /* Disable Interrupt */
 
-        if (state->isOpened) {
-            auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
+        auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
 
-            memoryProvider->Free(memoryProvider, state->regionSizes);
-            memoryProvider->Free(memoryProvider, state->regionAddresses);
-        }
+        memoryProvider->Free(memoryProvider, state->regionSizes);
+        memoryProvider->Free(memoryProvider, state->regionAddresses);
 
         LPC24_Gpio_ClosePin(d0.number);
         LPC24_Gpio_ClosePin(d1.number);
@@ -2285,8 +2280,6 @@ TinyCLR_Result LPC24_SdCard_Release(const TinyCLR_Storage_Controller* self) {
         LPC24_Gpio_ClosePin(d3.number);
         LPC24_Gpio_ClosePin(clk.number);
         LPC24_Gpio_ClosePin(cmd.number);
-
-        state->isOpened = false;
     }
 
     return TinyCLR_Result::Success;

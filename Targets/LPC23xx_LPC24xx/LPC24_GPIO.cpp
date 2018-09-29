@@ -125,6 +125,7 @@ static bool pinReserved[TOTAL_GPIO_PINS] __attribute__((section(".bss2.pinReserv
 static int64_t gpioDebounceInTicks[TOTAL_GPIO_PINS] __attribute__((section(".bss2.gpioDebounceInTicks")));
 static GpioInterruptState gpioInterruptState[TOTAL_GPIO_INTERRUPT_PINS] __attribute__((section(".bss2.gpioInterruptState")));
 static TinyCLR_Gpio_PinDriveMode pinDriveMode[TOTAL_GPIO_PINS] __attribute__((section(".bss2.pinDriveMode")));
+static TinyCLR_Gpio_PinValue previousOutputValue[TOTAL_GPIO_PINS] __attribute__((section(".bss2.previousOutputValue")));;
 
 static TinyCLR_Gpio_Controller gpioControllers[TOTAL_GPIO_CONTROLLERS];
 static TinyCLR_Api_Info gpioApi[TOTAL_GPIO_CONTROLLERS];
@@ -196,7 +197,7 @@ void LPC24_Gpio_InterruptHandler(void* param) {
 
     DISABLE_INTERRUPTS_SCOPED(irq);
 
-    bool executeIsr = true;
+    bool executeIsr = false;
 
     for (auto port = 0; port <= 2; port += 2) { // Only port 0 and port 2 support interrupts
         auto status_mask_register = 1 << port;
@@ -219,15 +220,14 @@ void LPC24_Gpio_InterruptHandler(void* param) {
             if (interruptState->handler && ((expectedEdgeInterger & currentEdgeInterger) || (expectedEdgeInterger == 0))) {
                 if (interruptState->debounce) {
                     if ((LPC24_Time_GetTimeForProcessorTicks(nullptr, LPC24_Time_GetCurrentProcessorTicks(nullptr)) - interruptState->lastDebounceTicks) >= gpioDebounceInTicks[interruptState->pin]) {
-                        interruptState->lastDebounceTicks = LPC24_Time_GetTimeForProcessorTicks(nullptr, LPC24_Time_GetCurrentProcessorTicks(nullptr));
+                        executeIsr = true;
                     }
-                    else {
-                        executeIsr = false;
-                    }
+
+                    interruptState->lastDebounceTicks = LPC24_Time_GetTimeForProcessorTicks(nullptr, LPC24_Time_GetCurrentProcessorTicks(nullptr));
                 }
 
                 if (executeIsr)
-                    interruptState->handler(interruptState->controller, interruptState->pin, edge);
+                    interruptState->handler(interruptState->controller, interruptState->pin, edge, LPC24_Time_GetCurrentProcessorTime());
             }
         }
     }
@@ -261,13 +261,13 @@ TinyCLR_Result LPC24_Gpio_SetPinChangedHandler(const TinyCLR_Gpio_Controller* se
         SET_PIN_INTERRUPT_RISING_EDGE(GET_PORT(pin), GET_PIN(pin));
         SET_PIN_INTERRUPT_FALLING_EDGE(GET_PORT(pin), GET_PIN(pin));
 
-        LPC24_Interrupt_Activate(LPC24XX_VIC::c_IRQ_INDEX_EINT3, (uint32_t*)&LPC24_Gpio_InterruptHandler, 0);
+        LPC24_InterruptInternal_Activate(LPC24XX_VIC::c_IRQ_INDEX_EINT3, (uint32_t*)&LPC24_Gpio_InterruptHandler, 0);
     }
     else {
         DISABLE_PIN_INTERRUPT_RISING_EDGE(GET_PORT(pin), GET_PIN(pin));
         DISABLE_PIN_INTERRUPT_FALLING_EDGE(GET_PORT(pin), GET_PIN(pin));
 
-        LPC24_Interrupt_Disable(LPC24XX_VIC::c_IRQ_INDEX_EINT3);
+        LPC24_InterruptInternal_Deactivate(LPC24XX_VIC::c_IRQ_INDEX_EINT3);
     }
 
     return TinyCLR_Result::Success;
@@ -409,6 +409,7 @@ TinyCLR_Result LPC24_Gpio_Write(const TinyCLR_Gpio_Controller* self, uint32_t pi
 
     LPC24_Gpio_WritePin(pin, value == TinyCLR_Gpio_PinValue::High ? true : false);
 
+    previousOutputValue[pin] = value;
     return TinyCLR_Result::Success;
 }
 
@@ -461,6 +462,8 @@ TinyCLR_Result LPC24_Gpio_SetDriveMode(const TinyCLR_Gpio_Controller* self, uint
     switch (driveMode) {
     case TinyCLR_Gpio_PinDriveMode::Output:
         LPC24_Gpio_ConfigurePin(pin, LPC24_Gpio_Direction::Output, LPC24_Gpio_PinFunction::PinFunction0, LPC24_Gpio_PinMode::Inactive);
+
+        LPC24_Gpio_Write(self, pin, previousOutputValue[pin]);
         break;
 
     case TinyCLR_Gpio_PinDriveMode::Input:
@@ -508,6 +511,8 @@ void LPC24_Gpio_Reset() {
             auto& p = gpioPins[pin];
 
             pinReserved[pin] = false;
+            previousOutputValue[pin] = TinyCLR_Gpio_PinValue::Low;
+
             LPC24_Gpio_SetDebounceTimeout(&gpioControllers[c], pin, DEBOUNCE_DEFAULT_TICKS);
 
             if (p.apply) {

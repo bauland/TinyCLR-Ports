@@ -55,11 +55,10 @@ const TinyCLR_Api_Info* STM32F7_Interrupt_GetRequiredApi();
 const TinyCLR_Api_Info* STM32F7_Interrupt_GetRequiredApi();
 TinyCLR_Result STM32F7_Interrupt_Initialize(const TinyCLR_Interrupt_Controller* self, TinyCLR_Interrupt_StartStopHandler onInterruptStart, TinyCLR_Interrupt_StartStopHandler onInterruptEnd);
 TinyCLR_Result STM32F7_Interrupt_Uninitialize(const TinyCLR_Interrupt_Controller* self);
-bool STM32F7_Interrupt_Enable(bool force);
-bool STM32F7_Interrupt_Disable(bool force);
+void STM32F7_Interrupt_Enable();
+void STM32F7_Interrupt_Disable();
 void STM32F7_Interrupt_WaitForInterrupt();
 bool STM32F7_Interrupt_IsDisabled();
-void STM32F7_Interrupt_Restore();
 
 ////////////////////////////////////////////////////////////////////////////////
 //Power
@@ -68,8 +67,8 @@ void STM32F7_Power_AddApi(const TinyCLR_Api_Manager* apiManager);
 const TinyCLR_Api_Info* STM32F7_Power_GetRequiredApi();
 TinyCLR_Result STM32F7_Power_Initialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result STM32F7_Power_Uninitialize(const TinyCLR_Power_Controller* self);
-void STM32F7_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
-void STM32F7_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level);
+TinyCLR_Result STM32F7_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
+TinyCLR_Result STM32F7_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 //Time
@@ -79,6 +78,7 @@ const TinyCLR_Api_Info* STM32F7_Time_GetRequiredApi();
 TinyCLR_Result STM32F7_Time_Initialize(const TinyCLR_NativeTime_Controller* self);
 TinyCLR_Result STM32F7_Time_Uninitialize(const TinyCLR_NativeTime_Controller* self);
 uint64_t STM32F7_Time_GetCurrentProcessorTicks(const TinyCLR_NativeTime_Controller* self);
+uint64_t STM32F7_Time_GetCurrentProcessorTime();
 uint64_t STM32F7_Time_GetTimeForProcessorTicks(const TinyCLR_NativeTime_Controller* self, uint64_t ticks);
 uint64_t STM32F7_Time_GetProcessorTicksForTime(const TinyCLR_NativeTime_Controller* self, uint64_t time);
 TinyCLR_Result STM32F7_Time_SetTickCallback(const TinyCLR_NativeTime_Controller* self, TinyCLR_NativeTime_Callback callback);
@@ -123,9 +123,9 @@ void STM32F7_Can_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result STM32F7_Can_Acquire(const TinyCLR_Can_Controller* self);
 TinyCLR_Result STM32F7_Can_Release(const TinyCLR_Can_Controller* self);
 TinyCLR_Result STM32F7_Can_SoftReset(const TinyCLR_Can_Controller* self);
-TinyCLR_Result STM32F7_Can_WriteMessage(const TinyCLR_Can_Controller* self, uint32_t arbitrationId, bool isExtendedId, bool isRemoteTransmissionRequest, const uint8_t* data, size_t length);
-TinyCLR_Result STM32F7_Can_ReadMessage(const TinyCLR_Can_Controller* self, uint32_t& arbitrationId, bool& isExtendedId, bool& isRemoteTransmissionRequest, uint8_t* data, size_t& length, uint64_t& timestamp);
-TinyCLR_Result STM32F7_Can_SetBitTiming(const TinyCLR_Can_Controller* self, uint32_t propagation, uint32_t phase1, uint32_t phase2, uint32_t baudratePrescaler, uint32_t synchronizationJumpWidth, bool useMultiBitSampling);
+TinyCLR_Result STM32F7_Can_WriteMessage(const TinyCLR_Can_Controller* self, const TinyCLR_Can_Message* messages, size_t& length);
+TinyCLR_Result STM32F7_Can_ReadMessage(const TinyCLR_Can_Controller* self, TinyCLR_Can_Message* messages, size_t& length);
+TinyCLR_Result STM32F7_Can_SetBitTiming(const TinyCLR_Can_Controller* self, const TinyCLR_Can_BitTiming* timing);
 size_t STM32F7_Can_GetMessagesToRead(const TinyCLR_Can_Controller* self);
 size_t STM32F7_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self);
 TinyCLR_Result STM32F7_Can_SetMessageReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_MessageReceivedHandler handler);
@@ -186,7 +186,7 @@ uint32_t STM32F7_Gpio_GetPinCount(const TinyCLR_Gpio_Controller* self);
 void STM32F7_I2c_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result STM32F7_I2c_Acquire(const TinyCLR_I2c_Controller* self);
 TinyCLR_Result STM32F7_I2c_Release(const TinyCLR_I2c_Controller* self);
-TinyCLR_Result STM32F7_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, uint32_t slaveAddress, TinyCLR_I2c_AddressFormat addressFormat, TinyCLR_I2c_BusSpeed busSpeed);
+TinyCLR_Result STM32F7_I2c_SetActiveSettings(const TinyCLR_I2c_Controller* self, const TinyCLR_I2c_Settings* settings);
 TinyCLR_Result STM32F7_I2c_WriteRead(const TinyCLR_I2c_Controller* self, const uint8_t* writeBuffer, size_t& writeLength, uint8_t* readBuffer, size_t& readLength, bool sendStartCondition, bool sendStopCondition, TinyCLR_I2c_TransferStatus& error);
 void STM32F7_I2c_Reset();
 
@@ -214,6 +214,7 @@ void STM32F7_Pwm_Reset();
 void STM32F7_Rtc_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result STM32F7_Rtc_Acquire(const TinyCLR_Rtc_Controller* self);
 TinyCLR_Result STM32F7_Rtc_Release(const TinyCLR_Rtc_Controller* self);
+TinyCLR_Result STM32F7_Rtc_IsValid(const TinyCLR_Rtc_Controller* self, bool& value);
 TinyCLR_Result STM32F7_Rtc_GetTime(const TinyCLR_Rtc_Controller* self, TinyCLR_Rtc_DateTime& value);
 TinyCLR_Result STM32F7_Rtc_SetTime(const TinyCLR_Rtc_Controller* self, TinyCLR_Rtc_DateTime value);
 
@@ -242,7 +243,7 @@ TinyCLR_Result STM32F7_SdCard_Reset();
 void STM32F7_Spi_AddApi(const TinyCLR_Api_Manager* apiManager);
 TinyCLR_Result STM32F7_Spi_Acquire(const TinyCLR_Spi_Controller* self);
 TinyCLR_Result STM32F7_Spi_Release(const TinyCLR_Spi_Controller* self);
-TinyCLR_Result STM32F7_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, uint32_t chipSelectLine, bool useControllerChipSelect, uint32_t clockFrequency, uint32_t dataBitLength, TinyCLR_Spi_Mode mode);
+TinyCLR_Result STM32F7_Spi_SetActiveSettings(const TinyCLR_Spi_Controller* self, const TinyCLR_Spi_Settings* settings);
 TinyCLR_Result STM32F7_Spi_Read(const TinyCLR_Spi_Controller* self, uint8_t* buffer, size_t& length);
 TinyCLR_Result STM32F7_Spi_Write(const TinyCLR_Spi_Controller* self, const uint8_t* buffer, size_t& length);
 TinyCLR_Result STM32F7_Spi_WriteRead(const TinyCLR_Spi_Controller* self, const uint8_t* writeBuffer, size_t& writeLength, uint8_t* readBuffer, size_t& readLength, bool deselectAfter);
@@ -262,7 +263,7 @@ TinyCLR_Result STM32F7_Uart_Acquire(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result STM32F7_Uart_Release(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result STM32F7_Uart_Enable(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result STM32F7_Uart_Disable(const TinyCLR_Uart_Controller* self);
-TinyCLR_Result STM32F7_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, uint32_t baudRate, uint32_t dataBits, TinyCLR_Uart_Parity parity, TinyCLR_Uart_StopBitCount stopBits, TinyCLR_Uart_Handshake handshaking);
+TinyCLR_Result STM32F7_Uart_SetActiveSettings(const TinyCLR_Uart_Controller* self, const TinyCLR_Uart_Settings* settings);
 TinyCLR_Result STM32F7_Uart_Flush(const TinyCLR_Uart_Controller* self);
 TinyCLR_Result STM32F7_Uart_Read(const TinyCLR_Uart_Controller* self, uint8_t* buffer, size_t& length);
 TinyCLR_Result STM32F7_Uart_Write(const TinyCLR_Uart_Controller* self, const uint8_t* buffer, size_t& length);

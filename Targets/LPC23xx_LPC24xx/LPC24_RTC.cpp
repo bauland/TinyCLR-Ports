@@ -44,6 +44,7 @@ void LPC24_Rtc_AddApi(const TinyCLR_Api_Manager* apiManager) {
         rtcControllers[i].ApiInfo = &rtcApi[i];
         rtcControllers[i].Acquire = &LPC24_Rtc_Acquire;
         rtcControllers[i].Release = &LPC24_Rtc_Release;
+        rtcControllers[i].IsValid = &LPC24_Rtc_IsValid;
         rtcControllers[i].GetTime = &LPC24_Rtc_GetTime;
         rtcControllers[i].SetTime = &LPC24_Rtc_SetTime;
 
@@ -74,6 +75,17 @@ TinyCLR_Result LPC24_Rtc_Acquire(const TinyCLR_Rtc_Controller* self) {
 }
 
 TinyCLR_Result LPC24_Rtc_Release(const TinyCLR_Rtc_Controller* self) {
+    return TinyCLR_Result::Success;
+}
+
+TinyCLR_Result LPC24_Rtc_IsValid(const TinyCLR_Rtc_Controller* self, bool& value) {
+    TinyCLR_Rtc_DateTime rtcNow;
+
+    value = (LPC24_Rtc_GetTime(self, rtcNow) == TinyCLR_Result::Success);
+
+    if (rtcNow.Second >= 60 || rtcNow.Minute >= 60 || rtcNow.Hour >= 24 || rtcNow.DayOfMonth >= 32 || rtcNow.Month >= 13 || rtcNow.Year <= 1979 || rtcNow.DayOfWeek == 0)
+        value = false;
+
     return TinyCLR_Result::Success;
 }
 

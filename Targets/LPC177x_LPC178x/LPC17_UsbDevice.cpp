@@ -211,7 +211,7 @@ void LPC17_UsbDevice_InitializeConfiguration(UsClientState *usClientState) {
     if (usClientState != nullptr) {
         usClientState->controllerIndex = controllerIndex;
 
-        usClientState->maxFifoPacketCount = LPC17_USB_PACKET_FIFO_COUNT;
+        usClientState->maxFifoPacketCountDefault = LPC17_USB_PACKET_FIFO_COUNT;
         usClientState->totalEndpointsCount = LPC17_USB_ENDPOINT_COUNT;
         usClientState->totalPipesCount = LPC17_USB_PIPE_COUNT;
 
@@ -230,7 +230,7 @@ bool LPC17_UsbDevice_Initialize(UsClientState *usClientState) {
 
     int32_t controllerIndex = usClientState->controllerIndex;
 
-    LPC17_Interrupt_Activate(USB_IRQn, (uint32_t*)&LPC17_UsbDevice_InterruptHandler, 0);
+    LPC17_InterruptInternal_Activate(USB_IRQn, (uint32_t*)&LPC17_UsbDevice_InterruptHandler, 0);
 
     for (int32_t i = 0; i < LPC17_USB_ENDPOINT_COUNT; i++)
         EndpointInit[i].word = 0;       // All useable endpoints initialize to unused
@@ -270,7 +270,7 @@ bool LPC17_UsbDevice_Initialize(UsClientState *usClientState) {
 bool LPC17_UsbDevice_Uninitialize(UsClientState *usClientState) {
     DISABLE_INTERRUPTS_SCOPED(irq);
 
-    LPC17_Interrupt_Deactivate(USB_IRQn);
+    LPC17_InterruptInternal_Deactivate(USB_IRQn);
 
     if (usClientState != nullptr) {
         LPC17_UsbDevice_ProtectPins(usClientState->controllerIndex, false);
@@ -898,6 +898,10 @@ bool TinyCLR_UsbClient_RxEnable(UsClientState* usClientState, int32_t endpoint) 
 
 void TinyCLR_UsbClient_Delay(uint64_t microseconds) {
     LPC17_Time_Delay(nullptr, microseconds);
+}
+
+uint64_t TinyCLR_UsbClient_Now() {
+    return LPC17_Time_GetCurrentProcessorTime();
 }
 
 void TinyCLR_UsbClient_InitializeConfiguration(UsClientState *usClientState) {

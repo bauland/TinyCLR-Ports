@@ -265,7 +265,7 @@ void STM32F7_UsbDevice_InitializeConfiguration(UsClientState *usClientState) {
     if (usClientState != nullptr) {
         usClientState->controllerIndex = controller;
 
-        usClientState->maxFifoPacketCount = STM32F7_USB_PACKET_FIFO_COUNT;
+        usClientState->maxFifoPacketCountDefault = STM32F7_USB_PACKET_FIFO_COUNT;
         usClientState->totalEndpointsCount = STM32F7_USB_ENDPOINT_COUNT;
         usClientState->totalPipesCount = STM32F7_USB_PIPE_COUNT;
 
@@ -756,6 +756,10 @@ bool TinyCLR_UsbClient_RxEnable(UsClientState* usClientState, int32_t endpoint) 
 
 void TinyCLR_UsbClient_Delay(uint64_t microseconds) {
     STM32F7_Time_Delay(nullptr, microseconds);
+}
+
+uint64_t TinyCLR_UsbClient_Now() {
+    return STM32F7_Time_GetCurrentProcessorTime();
 }
 
 void TinyCLR_UsbClient_InitializeConfiguration(UsClientState *usClientState) {

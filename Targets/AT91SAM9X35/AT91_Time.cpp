@@ -120,7 +120,7 @@ bool At91TimerDriver::Initialize(uint32_t timer, bool freeRunning, uint32_t clkS
     //--//
 
     if (ISR) {
-        if (!AT91_Interrupt_Activate(AT91C_ID_TC0_TC1, (uint32_t*)&ISR_TIMER, (void*)timer))
+        if (!AT91_InterruptInternal_Activate(AT91C_ID_TC0_TC1, (uint32_t*)&ISR_TIMER, (void*)timer))
             return false;
     }
 
@@ -291,6 +291,10 @@ uint64_t AT91_Time_GetTimeForProcessorTicks(const TinyCLR_NativeTime_Controller*
 
 uint64_t AT91_Time_GetProcessorTicksForTime(const TinyCLR_NativeTime_Controller* self, uint64_t time) {
     return AT91_Time_MicrosecondsToTicks(self, time / 10);
+}
+
+uint64_t AT91_Time_GetCurrentProcessorTime() {
+    return AT91_Time_GetTimeForProcessorTicks(nullptr, AT91_Time_GetCurrentProcessorTicks(nullptr));
 }
 
 uint64_t AT91_Time_MillisecondsToTicks(const TinyCLR_NativeTime_Controller* self, uint64_t ticks) {

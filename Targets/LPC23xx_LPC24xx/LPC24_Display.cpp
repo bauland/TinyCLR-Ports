@@ -779,7 +779,8 @@ void LPC24_Display_BitBltEx(int32_t x, int32_t y, int32_t width, int32_t height,
         }
         else {
             for (yTo = yOffset; yTo < (yOffset + height); yTo++) {
-                LPC24_Display_MemCopy((void*)(to + yTo * screenWidth + xOffset), (void*)(from + yTo * screenWidth + xOffset), (width * 2));
+                LPC24_Display_MemCopy((void*)(to + yTo * screenWidth + xOffset), (void*)(from), (width * 2)); 
+                from += width;
             }
         }
 
@@ -1033,13 +1034,7 @@ TinyCLR_Result LPC24_Display_DrawBuffer(const TinyCLR_Display_Controller* self, 
 }
 
 TinyCLR_Result LPC24_Display_DrawPixel(const TinyCLR_Display_Controller* self, uint32_t x, uint32_t y, uint64_t color) {
-    uint8_t R = (color >> 16) & 0xFF;
-    uint8_t G = (color >> 8) & 0xFF;
-    uint8_t B = (color) & 0xFF;
-
-    uint16_t rgb565 = (R & 0xF8) << 11;
-    rgb565 |= (G & 0xFC) << 5;
-    rgb565 |= (B & 0xF8);
+    uint16_t rgb565 = ((color & 0xF80000) >> 8) | ((color & 0x00FC00) >> 5) | ((color & 0x0000F8) >> 3);
 
     volatile uint16_t * loc;
 
