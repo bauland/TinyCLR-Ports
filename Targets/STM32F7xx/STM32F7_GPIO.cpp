@@ -152,7 +152,7 @@ void STM32F7_Gpio_ISR(int num)  // 0 <= num <= 15
         }
 
         if (executeIsr)
-            interruptState->handler(interruptState->controller, interruptState->pin, edge, STM32F7_Time_GetCurrentProcessorTime());
+            interruptState->handler(interruptState->controller, interruptState->pin, edge, STM32F7_Time_GetSystemTime(nullptr));
     }
 }
 
@@ -282,6 +282,20 @@ bool STM32F7_GpioInternal_ClosePin(int32_t pin) {
 
     // reset to default state
     return STM32F7_GpioInternal_ConfigurePin(pin, STM32F7_Gpio_PortMode::Input, STM32F7_Gpio_OutputType::PushPull, STM32F7_Gpio_OutputSpeed::VeryHigh, STM32F7_Gpio_PullDirection::None, STM32F7_Gpio_AlternateFunction::AF0);
+}
+
+bool STM32F7_GpioInternal_OpenMultiPins(const STM32F7_Gpio_Pin* pins, size_t count) {
+    for (auto i = 0; i < count; i++) {
+        if (!STM32F7_GpioInternal_OpenPin(pins[i].number)) {
+            for (auto ii = 0; ii < i; ii++) {
+                STM32F7_GpioInternal_ClosePin(pins[ii].number);
+
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 bool STM32F7_GpioInternal_ConfigurePin(int32_t pin, STM32F7_Gpio_PortMode portMode, STM32F7_Gpio_OutputType outputType, STM32F7_Gpio_OutputSpeed outputSpeed, STM32F7_Gpio_PullDirection pullDirection, STM32F7_Gpio_AlternateFunction alternateFunction) {

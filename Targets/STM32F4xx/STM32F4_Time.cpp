@@ -32,6 +32,7 @@ struct TimeState {
     uint32_t m_periodTicks;
 
     TinyCLR_NativeTime_Callback m_DequeuAndExecute;
+    const TinyCLR_SystemTime_Manager* systemTime;
 
     static void Reload(uint32_t value);
 
@@ -197,9 +198,7 @@ extern "C" {
         INTERRUPT_STARTED_SCOPED(isr);
 
         auto controllerIndex = 0; // default index if no specific
-
         auto state = &timeStates[controllerIndex];
-
         auto self = &timeControllers[controllerIndex];
 
         if (STM32F4_Time_GetCurrentProcessorTicks(self) >= timerNextEvent) { // handle event
@@ -243,6 +242,20 @@ TinyCLR_Result STM32F4_Time_SetTickCallback(const TinyCLR_NativeTime_Controller*
     state->m_DequeuAndExecute = callback;
 
     return TinyCLR_Result::Success;
+}
+
+uint64_t STM32F4_Time_GetSystemTime(const TinyCLR_NativeTime_Controller* self) {
+    uint64_t utc;
+    int32_t tz;
+
+    auto state = ((self == nullptr) ? &timeStates[0] : reinterpret_cast<TimeState*>(self->ApiInfo->State));
+
+    if (state->systemTime == nullptr)
+        state->systemTime = reinterpret_cast<const TinyCLR_SystemTime_Manager*>(apiManager->FindDefault(apiManager, TinyCLR_Api_Type::SystemTimeManager));
+
+    state->systemTime->GetTime(state->systemTime, utc, tz);
+
+    return utc;
 }
 
 extern "C" void IDelayLoop(int32_t iterations);

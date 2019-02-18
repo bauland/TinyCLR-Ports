@@ -238,8 +238,12 @@ void STM32F7_Startup_OnSoftReset(const TinyCLR_Api_Manager* apiManager, const Ti
 #define FLASH_ACR_LATENCY_BITS FLASH_ACR_LATENCY_3WS // 3 wait states
 #elif STM32F7_AHB_CLOCK_HZ <= 150000000
 #define FLASH_ACR_LATENCY_BITS FLASH_ACR_LATENCY_4WS // 4 wait states
-#else
+#elif STM32F7_AHB_CLOCK_HZ <= 180000000
 #define FLASH_ACR_LATENCY_BITS FLASH_ACR_LATENCY_5WS // 5 wait states
+#elif STM32F7_AHB_CLOCK_HZ <= 210000000
+#define FLASH_ACR_LATENCY_BITS FLASH_ACR_LATENCY_6WS // 6 wait states
+#else
+#define FLASH_ACR_LATENCY_BITS FLASH_ACR_LATENCY_7WS // 7 wait states
 #endif
 #endif
 
@@ -247,6 +251,12 @@ void STM32F7_Startup_OnSoftReset(const TinyCLR_Api_Manager* apiManager, const Ti
 
 extern "C" {
     void __section("SectionForBootstrapOperations") SystemInit() {
+        //Reset MPU
+        STM32F7_Mpu_Reset();
+
+        // Config MPU
+        STM32F7_Startup_MpuConfiguration();
+
         // Enable cahce
         STM32F7_Startup_CacheEnable();
 
@@ -311,7 +321,10 @@ extern "C" {
 #endif
 
         // remove Flash remap to Boot area to avoid problems with Monitor_Execute
-        SYSCFG->MEMRMP = 1; // map System memory to Boot area
+        SYSCFG->MEMRMP = SYSCFG_MEMRMP_MEM_BOOT; // map System memory to Boot area. 
+
+        //Swap FMC address
+        SYSCFG->MEMRMP |= SYSCFG_MEMRMP_SWP_FMC_0; 
 
         // GPIO port A to D is always present
         RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN | RCC_AHB1ENR_GPIOBEN | RCC_AHB1ENR_GPIOCEN | RCC_AHB1ENR_GPIODEN;

@@ -19,7 +19,7 @@
 #define TOTAL_DEPLOYMENT_CONTROLLERS 1
 
 const char* deploymentApiNames[TOTAL_DEPLOYMENT_CONTROLLERS] = {
-    "GHIElectronics.TinyCLR.NativeApis.LPC24.StorageController\\0"
+    "GHIElectronics.TinyCLR.NativeApis.AT49BV322DT.StorageController\\0"
 };
 
 static TinyCLR_Storage_Controller deploymentControllers[TOTAL_DEPLOYMENT_CONTROLLERS];
@@ -35,7 +35,7 @@ struct DeploymentState {
     TinyCLR_Storage_Descriptor storageDescriptor;
     TinyCLR_Startup_DeploymentConfiguration deploymentConfiguration;
 
-    bool isOpened = false;
+    uint32_t initializeCount;
     bool tableInitialized = false;
 };
 
@@ -56,8 +56,6 @@ void LPC24_Deployment_EnsureTableInitialized() {
         deploymentControllers[i].Erase = &LPC24_Deployment_Erase;
         deploymentControllers[i].IsErased = &LPC24_Deployment_IsErased;
         deploymentControllers[i].GetDescriptor = &LPC24_Deployment_GetDescriptor;
-        deploymentControllers[i].IsPresent = &LPC24_Deployment_IsPresent;
-        deploymentControllers[i].SetPresenceChangedHandler = &LPC24_Deployment_SetPresenceChangedHandler;
 
         deploymentApi[i].Author = "GHI Electronics, LLC";
         deploymentApi[i].Name = deploymentApiNames[i];
@@ -67,6 +65,7 @@ void LPC24_Deployment_EnsureTableInitialized() {
         deploymentApi[i].State = &deploymentStates[i];
 
         deploymentStates[i].controllerIndex = i;
+        deploymentStates[i].initializeCount = 0;
         deploymentStates[i].regionCount = LPC24_DEPLOYMENT_SECTOR_NUM;
 
         deploymentStates[i].tableInitialized = true;
@@ -93,26 +92,52 @@ void LPC24_Deployment_AddApi(const TinyCLR_Api_Manager* apiManager) {
 }
 
 TinyCLR_Result LPC24_Deployment_Acquire(const TinyCLR_Storage_Controller* self) {
-    return AT49BV322DT_Flash_Acquire();
+    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
+
+    TinyCLR_Result result = TinyCLR_Result::Success;
+
+    if (state != nullptr) {
+        if (state->initializeCount == 0) {
+            result = AT49BV322DT_Flash_Acquire();
+        }
+
+        if (result == TinyCLR_Result::Success) {
+            state->initializeCount++;
+        }
+    }
+
+    return result = (state != nullptr) ? result : TinyCLR_Result::ArgumentNull;
 }
 
 TinyCLR_Result LPC24_Deployment_Release(const TinyCLR_Storage_Controller* self) {
-    return AT49BV322DT_Flash_Release();
+    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
+
+    TinyCLR_Result result = TinyCLR_Result::Success;
+
+    if (state != nullptr) {
+        if (state->initializeCount == 0)
+            return TinyCLR_Result::InvalidOperation;
+
+        result = AT49BV322DT_Flash_Release();
+
+        if (result == TinyCLR_Result::Success) {
+            state->initializeCount--;
+        }
+    }
+
+    return result = (state != nullptr) ? result : TinyCLR_Result::ArgumentNull;
 }
 
 TinyCLR_Result LPC24_Deployment_Open(const TinyCLR_Storage_Controller* self) {
     auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
 
-    if (state->isOpened)
-        return TinyCLR_Result::SharingViolation;
-
     state->storageDescriptor.CanReadDirect = true;
-    state->storageDescriptor.CanWriteDirect = true;
+    state->storageDescriptor.CanWriteDirect = false;
     state->storageDescriptor.CanExecuteDirect = true;
     state->storageDescriptor.EraseBeforeWrite = true;
     state->storageDescriptor.Removable = false;
-    state->storageDescriptor.RegionsContiguous = false;
-    state->storageDescriptor.RegionsEqualSized = false;
+    state->storageDescriptor.RegionsContiguous = true;
+    state->storageDescriptor.RegionsEqualSized = true;
 
     size_t regionCount;
 
@@ -131,22 +156,14 @@ TinyCLR_Result LPC24_Deployment_Open(const TinyCLR_Storage_Controller* self) {
     state->deploymentConfiguration.RegionCount = state->storageDescriptor.RegionCount;
     state->deploymentConfiguration.RegionAddresses = state->storageDescriptor.RegionAddresses;
     state->deploymentConfiguration.RegionSizes = state->storageDescriptor.RegionSizes;
-    state->deploymentConfiguration.RegionsContiguous = false;
-    state->deploymentConfiguration.RegionsEqualSized = false;
-
-    state->isOpened = true;
+    state->deploymentConfiguration.RegionsContiguous = state->storageDescriptor.RegionsContiguous;
+    state->deploymentConfiguration.RegionsEqualSized = state->storageDescriptor.RegionsEqualSized;
 
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result LPC24_Deployment_Close(const TinyCLR_Storage_Controller* self) {
-    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
-
-    if (!state->isOpened)
-        return TinyCLR_Result::NotFound;
-
-    state->isOpened = false;
-
+    // Close internal flash
     return TinyCLR_Result::Success;
 }
 
@@ -176,15 +193,6 @@ TinyCLR_Result LPC24_Deployment_IsErased(const TinyCLR_Storage_Controller* self,
 
 TinyCLR_Result LPC24_Deployment_GetBytesPerSector(const TinyCLR_Storage_Controller* self, uint32_t address, int32_t& size) {
     return AT49BV322DT_Flash_GetBytesPerSector(address, size);
-}
-
-TinyCLR_Result LPC24_Deployment_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler) {
-    return TinyCLR_Result::Success;
-}
-
-TinyCLR_Result LPC24_Deployment_IsPresent(const TinyCLR_Storage_Controller* self, bool& present) {
-    present = true;
-    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result LPC24_Deployment_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor) {

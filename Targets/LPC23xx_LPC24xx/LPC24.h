@@ -147,7 +147,7 @@ struct LPC24_Gpio_PinConfiguration {
 #define INIT(direction, pinMode, pinFunction, outputDirection, apply) { LPC24_Gpio_Direction::direction, LPC24_Gpio_PinMode::pinMode, LPC24_Gpio_PinFunction::pinFunction, outputDirection, apply }
 #define ALTFUN(direction, pinMode, pinFunction) { LPC24_Gpio_Direction::direction, LPC24_Gpio_PinMode::pinMode, LPC24_Gpio_PinFunction::pinFunction, true }
 #define INPUT(pinMode) { LPC24_Gpio_Direction::Input, LPC24_Gpio_PinMode::pinMode, LPC24_Gpio_PinFunction::PinFunction0, true }
-#define DEFAULT() INIT(Input, Inactive, PinFunction0, false, true)
+#define DEFAULT() INIT(Input, PullUp, PinFunction0, false, true)
 #define NO_INIT() INIT(Input, Inactive, PinFunction0, false, false)
 
 extern const TinyCLR_Api_Manager* apiManager;
@@ -169,13 +169,14 @@ uint64_t LPC24_Gpio_GetDebounceTimeout(const TinyCLR_Gpio_Controller* self, uint
 uint32_t LPC24_Gpio_GetPinCount(const TinyCLR_Gpio_Controller* self);
 TinyCLR_Result LPC24_Gpio_SetPinChangedHandler(const TinyCLR_Gpio_Controller* self, uint32_t pin, TinyCLR_Gpio_PinChangeEdge edge, TinyCLR_Gpio_PinChangedHandler handler);
 TinyCLR_Result LPC24_Gpio_ClosePin(const TinyCLR_Gpio_Controller* self, uint32_t pin);
-void LPC24_Gpio_EnableOutputPin(int32_t pin, bool initialState);
-void LPC24_Gpio_EnableInputPin(int32_t pin, TinyCLR_Gpio_PinDriveMode resistor);
-bool LPC24_Gpio_OpenPin(int32_t pin);
-bool LPC24_Gpio_ClosePin(int32_t pin);
-bool LPC24_Gpio_ReadPin(int32_t pin);
-void LPC24_Gpio_WritePin(int32_t pin, bool value);
-bool LPC24_Gpio_ConfigurePin(int32_t pin, LPC24_Gpio_Direction pinDir, LPC24_Gpio_PinFunction alternateFunction, LPC24_Gpio_PinMode pullResistor);
+void LPC24_GpioInternal_EnableOutputPin(int32_t pin, bool initialState);
+void LPC24_GpioInternal_EnableInputPin(int32_t pin, TinyCLR_Gpio_PinDriveMode resistor);
+bool LPC24_GpioInternal_OpenPin(int32_t pin);
+bool LPC24_GpioInternal_ClosePin(int32_t pin);
+bool LPC24_GpioInternal_ReadPin(int32_t pin);
+void LPC24_GpioInternal_WritePin(int32_t pin, bool value);
+bool LPC24_GpioInternal_ConfigurePin(int32_t pin, LPC24_Gpio_Direction pinDir, LPC24_Gpio_PinFunction alternateFunction, LPC24_Gpio_PinMode pullResistor);
+bool LPC24_GpioInternal_OpenMultiPins(const LPC24_Gpio_Pin* pins, size_t count);
 
 // ADC
 void LPC24_Adc_AddApi(const TinyCLR_Api_Manager* apiManager);
@@ -204,7 +205,7 @@ TinyCLR_Result LPC24_Can_WriteMessage(const TinyCLR_Can_Controller* self, const 
 TinyCLR_Result LPC24_Can_ReadMessage(const TinyCLR_Can_Controller* self, TinyCLR_Can_Message* messages, size_t& length);
 TinyCLR_Result LPC24_Can_SetBitTiming(const TinyCLR_Can_Controller* self, const TinyCLR_Can_BitTiming* timing);
 size_t LPC24_Can_GetMessagesToRead(const TinyCLR_Can_Controller* self);
-size_t LP24_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self);
+size_t LPC24_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self);
 TinyCLR_Result LPC24_Can_SetMessageReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_MessageReceivedHandler handler);
 TinyCLR_Result LPC24_Can_SetErrorReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_ErrorReceivedHandler handler);
 TinyCLR_Result LPC24_Can_SetExplicitFilters(const TinyCLR_Can_Controller* self, const uint32_t* filters, size_t count);
@@ -294,8 +295,6 @@ TinyCLR_Result LPC24_SdCard_Write(const TinyCLR_Storage_Controller* self, uint64
 TinyCLR_Result LPC24_SdCard_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased);
 TinyCLR_Result LPC24_SdCard_Erases(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint64_t timeout);
 TinyCLR_Result LPC24_SdCard_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
-TinyCLR_Result LPC24_SdCard_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
-TinyCLR_Result LPC24_SdCard_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
 TinyCLR_Result LPC24_SdCard_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result LPC24_SdCard_Close(const TinyCLR_Storage_Controller* self);
 
@@ -369,8 +368,6 @@ TinyCLR_Result LPC24_Deployment_Erase(const TinyCLR_Storage_Controller* self, ui
 TinyCLR_Result LPC24_Deployment_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased);
 TinyCLR_Result LPC24_Deployment_GetBytesPerSector(const TinyCLR_Storage_Controller* self, uint32_t address, int32_t& size);
 TinyCLR_Result LPC24_Deployment_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
-TinyCLR_Result LPC24_Deployment_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
-TinyCLR_Result LPC24_Deployment_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
 TinyCLR_Result LPC24_Deployment_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result LPC24_Deployment_Close(const TinyCLR_Storage_Controller* self);
 bool LPC24_Deployment_PageProgram(uint32_t byteAddress, uint32_t NumberOfBytesToWrite, const uint8_t * pointerToWriteBuffer);
@@ -442,12 +439,13 @@ void LPC24_Time_Delay(const TinyCLR_NativeTime_Controller* self, uint64_t micros
 void LPC24_Time_Delay(const TinyCLR_NativeTime_Controller* self, uint64_t microseconds);
 void LPC24_Time_GetDriftParameters(const TinyCLR_NativeTime_Controller* self, int32_t* a, int32_t* b, int64_t* c);
 void LPC24_Time_DelayNative(const TinyCLR_NativeTime_Controller* self, uint64_t nativeTime);
+uint64_t LPC24_Time_GetSystemTime(const TinyCLR_NativeTime_Controller* self);
 
 // Power
 void LPC24_Power_AddApi(const TinyCLR_Api_Manager* apiManager);
 const TinyCLR_Api_Info* LPC24_Power_GetRequiredApi();
 void LPC24_Power_SetHandlers(void(*stop)(), void(*restart)());
-TinyCLR_Result LPC24_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource);
+TinyCLR_Result LPC24_Power_SetLevel(const TinyCLR_Power_Controller* self, TinyCLR_Power_Level level, TinyCLR_Power_WakeSource wakeSource, uint64_t data);
 TinyCLR_Result LPC24_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
 TinyCLR_Result LPC24_Power_Initialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result LPC24_Power_Uninitialize(const TinyCLR_Power_Controller* self);
@@ -487,15 +485,15 @@ void LPC24_UsbDevice_Reset();
 void LPC24_UsbDevice_PinConfiguration();
 
 struct USB_PACKET64;
-struct UsClientState;
-typedef void(*USB_NEXT_CALLBACK)(UsClientState*);
+struct UsbClientState;
+typedef void(*USB_NEXT_CALLBACK)(UsbClientState*);
 
-void TinyCLR_UsbClient_ClearEvent(UsClientState *usClientState, uint32_t event);
-void TinyCLR_UsbClient_ClearEndpoints(UsClientState *usClientState, int32_t endpoint);
-USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsClientState* usClientState, int32_t endpoint, bool& disableRx);
-USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsClientState* usClientState, int32_t endpoint);
-void TinyCLR_UsbClient_StateCallback(UsClientState* usClientState);
-uint8_t TinyCLR_UsbClient_ControlCallback(UsClientState* usClientState);
+void TinyCLR_UsbClient_ClearEvent(UsbClientState *usbClientState, uint32_t event);
+void TinyCLR_UsbClient_ClearEndpoints(UsbClientState *usbClientState, int32_t endpoint);
+USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsbClientState* usbClientState, int32_t endpoint, bool& disableRx);
+USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsbClientState* usbClientState, int32_t endpoint);
+void TinyCLR_UsbClient_StateCallback(UsbClientState* usbClientState);
+uint8_t TinyCLR_UsbClient_ControlCallback(UsbClientState* usbClientState);
 
 // LCD
 void LPC24_Display_Reset();

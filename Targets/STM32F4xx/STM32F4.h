@@ -38,8 +38,6 @@ TinyCLR_Result STM32F4_Flash_Write(const TinyCLR_Storage_Controller* self, uint6
 TinyCLR_Result STM32F4_Flash_Erase(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint64_t timeout);
 TinyCLR_Result STM32F4_Flash_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased);
 TinyCLR_Result STM32F4_Flash_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
-TinyCLR_Result STM32F4_Flash_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
-TinyCLR_Result STM32F4_Flash_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
 TinyCLR_Result STM32F4_Flash_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result STM32F4_Flash_Close(const TinyCLR_Storage_Controller* self);
 void STM32F4_Flash_GetDeploymentApi(const TinyCLR_Api_Info*& api, const TinyCLR_Startup_DeploymentConfiguration*& configuration);
@@ -65,7 +63,7 @@ const TinyCLR_Api_Info* STM32F4_Power_GetRequiredApi();
 TinyCLR_Result STM32F4_Power_Initialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result STM32F4_Power_Uninitialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result STM32F4_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
-TinyCLR_Result STM32F4_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource);
+TinyCLR_Result STM32F4_Power_SetLevel(const TinyCLR_Power_Controller* self, TinyCLR_Power_Level level, TinyCLR_Power_WakeSource wakeSource, uint64_t data);
 
 ////////////////////////////////////////////////////////////////////////////////
 //Time
@@ -82,6 +80,7 @@ TinyCLR_Result STM32F4_Time_SetTickCallback(const TinyCLR_NativeTime_Controller*
 TinyCLR_Result STM32F4_Time_SetNextTickCallbackTime(const TinyCLR_NativeTime_Controller* self, uint64_t processorTicks);
 void STM32F4_Time_Delay(const TinyCLR_NativeTime_Controller* self, uint64_t microseconds);
 void STM32F4_Time_DelayNative(const TinyCLR_NativeTime_Controller* self, uint64_t nativeTime);
+uint64_t STM32F4_Time_GetSystemTime(const TinyCLR_NativeTime_Controller* self);
 
 ////////////////////////////////////////////////////////////////////////////////
 //Startup
@@ -229,8 +228,6 @@ TinyCLR_Result STM32F4_SdCard_Erases(const TinyCLR_Storage_Controller* self, uin
 TinyCLR_Result STM32F4_SdCard_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
 TinyCLR_Result STM32F4_SdCard_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result STM32F4_SdCard_Close(const TinyCLR_Storage_Controller* self);
-TinyCLR_Result STM32F4_SdCard_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
-TinyCLR_Result STM32F4_SdCard_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
 TinyCLR_Result STM32F4_SdCard_Reset();
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,16 +284,16 @@ const TinyCLR_Api_Info* STM32F4_UsbDevice_GetRequiredApi();
 void STM32F4_UsbDevice_Reset();
 
 struct USB_PACKET64;
-struct UsClientState;
-typedef void(*USB_NEXT_CALLBACK)(UsClientState*);
+struct UsbClientState;
+typedef void(*USB_NEXT_CALLBACK)(UsbClientState*);
 
-void TinyCLR_UsbClient_ClearEvent(UsClientState *usClientState, uint32_t event);
-void TinyCLR_UsbClient_ClearEndpoints(UsClientState *usClientState, int32_t endpoint);
-USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsClientState* usClientState, int32_t endpoint, bool& disableRx);
-USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsClientState* usClientState, int32_t endpoint);
-void TinyCLR_UsbClient_StateCallback(UsClientState* usClientState);
-uint8_t TinyCLR_UsbClient_ControlCallback(UsClientState* usClientState);
-bool TinyCLR_UsbClient_CanReceivePackage(UsClientState* usClientState, int32_t endpoint);
+void TinyCLR_UsbClient_ClearEvent(UsbClientState *usbClientState, uint32_t event);
+void TinyCLR_UsbClient_ClearEndpoints(UsbClientState *usbClientState, int32_t endpoint);
+USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsbClientState* usbClientState, int32_t endpoint, bool& disableRx);
+USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsbClientState* usbClientState, int32_t endpoint);
+void TinyCLR_UsbClient_StateCallback(UsbClientState* usbClientState);
+uint8_t TinyCLR_UsbClient_ControlCallback(UsbClientState* usbClientState);
+bool TinyCLR_UsbClient_CanReceivePackage(UsbClientState* usbClientState, int32_t endpoint);
 
 ////////////////////////////////////////////////////////////////////////////////
 //Interrupt Internal
@@ -398,10 +395,11 @@ struct STM32F4_Gpio_PinConfiguration {
 #define ANALOG() INIT(Analog, PushPull, VeryHigh, false, None, AF0, true)
 #define OUTPUT(outputType, outputSpeed, outputDirection, pullDirection) INIT(GeneralPurposeOutput, outputType, outputSpeed, outputDirection, pullDirection, AF0, true)
 #define INPUT(pullDirection) INIT(Input, PushPull, VeryHigh, false, pullDirection, AF0, true)
-#define DEFAULT() INIT(Input, PushPull, VeryHigh, false, PullDown, AF0, true)
-#define NO_INIT() INIT(Input, PushPull, VeryHigh, false, PullDown, AF0, false)
+#define DEFAULT() INIT(Input, PushPull, VeryHigh, false, PullUp, AF0, true)
+#define NO_INIT() INIT(Input, PushPull, VeryHigh, false, None, AF0, false)
 
 bool STM32F4_GpioInternal_OpenPin(int32_t pin);
+bool STM32F4_GpioInternal_OpenMultiPins(const STM32F4_Gpio_Pin* pins, size_t count);
 bool STM32F4_GpioInternal_ClosePin(int32_t pin);
 bool STM32F4_GpioInternal_ReadPin(int32_t pin);
 void STM32F4_GpioInternal_WritePin(int32_t pin, bool value);

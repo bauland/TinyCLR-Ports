@@ -52,7 +52,7 @@ TinyCLR_Result LPC17_Can_WriteMessage(const TinyCLR_Can_Controller* self, const 
 TinyCLR_Result LPC17_Can_ReadMessage(const TinyCLR_Can_Controller* self, TinyCLR_Can_Message* messages, size_t& length);
 TinyCLR_Result LPC17_Can_SetBitTiming(const TinyCLR_Can_Controller* self, const TinyCLR_Can_BitTiming* timing);
 size_t LPC17_Can_GetMessagesToRead(const TinyCLR_Can_Controller* self);
-size_t LP17_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self);
+size_t LPC17_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self);
 TinyCLR_Result LPC17_Can_SetMessageReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_MessageReceivedHandler handler);
 TinyCLR_Result LPC17_Can_SetErrorReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_ErrorReceivedHandler handler);
 TinyCLR_Result LPC17_Can_SetExplicitFilters(const TinyCLR_Can_Controller* self, const uint32_t* filters, size_t count);
@@ -155,7 +155,7 @@ struct LPC17_Gpio_PinConfiguration {
 #define INIT(direction, resistorMode, hysteresis, inputPolarity, slewRate, outputType, pinFunction, outputDirection, apply) { LPC17_Gpio_Direction::direction, LPC17_Gpio_ResistorMode::resistorMode, LPC17_Gpio_Hysteresis::hysteresis, LPC17_Gpio_InputPolarity::inputPolarity, LPC17_Gpio_SlewRate::slewRate, LPC17_Gpio_OutputType::outputType,LPC17_Gpio_PinFunction::pinFunction, outputDirection, apply }
 #define ALTFUN(direction, resistorMode, outputType, pinFunction) { LPC17_Gpio_Direction::direction, LPC17_Gpio_ResistorMode::resistorMode, LPC17_Gpio_Hysteresis::Disable, LPC17_Gpio_InputPolarity::NotInverted, LPC17_Gpio_SlewRate::StandardMode, LPC17_Gpio_OutputType::outputType,LPC17_Gpio_PinFunction::pinFunction, true }
 #define INPUT(outputType, resistorMode) { LPC17_Gpio_Direction::Input, LPC17_Gpio_ResistorMode::resistorMode, LPC17_Gpio_Hysteresis::Disable, LPC17_Gpio_InputPolarity::NotInverted, LPC17_Gpio_SlewRate::StandardMode, LPC17_Gpio_OutputType::outputType,LPC17_Gpio_PinFunction::PinFunction0, true }
-#define DEFAULT() INIT(Input, Inactive, Disable, NotInverted, StandardMode, PushPull, PinFunction0, false, true)
+#define DEFAULT() INIT(Input, PullUp, Disable, NotInverted, StandardMode, PushPull, PinFunction0, false, true)
 #define NO_INIT() INIT(Input, Inactive, Disable, NotInverted, StandardMode, PushPull, PinFunction0, false, false)
 
 void LPC17_Gpio_Reset();
@@ -176,11 +176,12 @@ uint32_t LPC17_Gpio_GetPinCount(const TinyCLR_Gpio_Controller* self);
 TinyCLR_Result LPC17_Gpio_SetPinChangedHandler(const TinyCLR_Gpio_Controller* self, uint32_t pin, TinyCLR_Gpio_PinChangeEdge edge, TinyCLR_Gpio_PinChangedHandler handler);
 TinyCLR_Result LPC17_Gpio_ClosePin(const TinyCLR_Gpio_Controller* self, uint32_t pin);
 
-bool LPC17_Gpio_OpenPin(int32_t pin);
-bool LPC17_Gpio_ClosePin(int32_t pin);
-bool LPC17_Gpio_ConfigurePin(int32_t pin, LPC17_Gpio_Direction pinDir, LPC17_Gpio_PinFunction pinFunction, LPC17_Gpio_ResistorMode pullResistor, LPC17_Gpio_Hysteresis hysteresis, LPC17_Gpio_InputPolarity inputPolarity, LPC17_Gpio_SlewRate slewRate, LPC17_Gpio_OutputType outputType);
-void LPC17_Gpio_EnableOutputPin(int32_t pin, bool initialState);
-void LPC17_Gpio_EnableInputPin(int32_t pin, TinyCLR_Gpio_PinDriveMode resistor);
+bool LPC17_GpioInternal_OpenPin(int32_t pin);
+bool LPC17_GpioInternal_ClosePin(int32_t pin);
+bool LPC17_GpioInternal_ConfigurePin(int32_t pin, LPC17_Gpio_Direction pinDir, LPC17_Gpio_PinFunction pinFunction, LPC17_Gpio_ResistorMode pullResistor, LPC17_Gpio_Hysteresis hysteresis, LPC17_Gpio_InputPolarity inputPolarity, LPC17_Gpio_SlewRate slewRate, LPC17_Gpio_OutputType outputType);
+void LPC17_GpioInternal_EnableOutputPin(int32_t pin, bool initialState);
+void LPC17_GpioInternal_EnableInputPin(int32_t pin, TinyCLR_Gpio_PinDriveMode resistor);
+bool LPC17_GpioInternal_OpenMultiPins(const LPC17_Gpio_Pin* pins, size_t count);
 
 struct PwmState {
     int32_t controllerIndex;
@@ -242,8 +243,6 @@ TinyCLR_Result LPC17_SdCard_Write(const TinyCLR_Storage_Controller* self, uint64
 TinyCLR_Result LPC17_SdCard_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased);
 TinyCLR_Result LPC17_SdCard_Erases(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint64_t timeout);
 TinyCLR_Result LPC17_SdCard_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
-TinyCLR_Result LPC17_SdCard_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
-TinyCLR_Result LPC17_SdCard_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
 TinyCLR_Result LPC17_SdCard_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result LPC17_SdCard_Close(const TinyCLR_Storage_Controller* self);
 
@@ -320,8 +319,6 @@ TinyCLR_Result LPC17_Deployment_Erase(const TinyCLR_Storage_Controller* self, ui
 TinyCLR_Result LPC17_Deployment_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased);
 TinyCLR_Result LPC17_Deployment_GetBytesPerSector(const TinyCLR_Storage_Controller* self, uint32_t address, int32_t& size);
 TinyCLR_Result LPC17_Deployment_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
-TinyCLR_Result LPC17_Deployment_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
-TinyCLR_Result LPC17_Deployment_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
 TinyCLR_Result LPC17_Deployment_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result LPC17_Deployment_Close(const TinyCLR_Storage_Controller* self);
 
@@ -388,12 +385,13 @@ TinyCLR_Result LPC17_Time_SetTickCallback(const TinyCLR_NativeTime_Controller* s
 TinyCLR_Result LPC17_Time_SetNextTickCallbackTime(const TinyCLR_NativeTime_Controller* self, uint64_t processorTicks);
 void LPC17_Time_Delay(const TinyCLR_NativeTime_Controller* self, uint64_t microseconds);
 void LPC17_Time_DelayNative(const TinyCLR_NativeTime_Controller* self, uint64_t nativeTime);
+uint64_t LPC17_Time_GetSystemTime(const TinyCLR_NativeTime_Controller* self);
 
 // Power
 void LPC17_Power_AddApi(const TinyCLR_Api_Manager* apiManager);
 const TinyCLR_Api_Info* LPC17_Power_GetRequiredApi();
 void LPC17_Power_SetHandlers(void(*stop)(), void(*restart)());
-TinyCLR_Result LPC17_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource);
+TinyCLR_Result LPC17_Power_SetLevel(const TinyCLR_Power_Controller* self, TinyCLR_Power_Level level, TinyCLR_Power_WakeSource wakeSource, uint64_t data);
 TinyCLR_Result LPC17_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
 TinyCLR_Result LPC17_Power_Initialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result LPC17_Power_Uninitialize(const TinyCLR_Power_Controller* self);
@@ -404,15 +402,15 @@ void LPC17_UsbDevice_AddApi(const TinyCLR_Api_Manager* apiManager);
 void LPC17_UsbDevice_Reset();
 
 struct USB_PACKET64;
-struct UsClientState;
-typedef void(*USB_NEXT_CALLBACK)(UsClientState*);
+struct UsbClientState;
+typedef void(*USB_NEXT_CALLBACK)(UsbClientState*);
 
-void TinyCLR_UsbClient_ClearEvent(UsClientState *usClientState, uint32_t event);
-void TinyCLR_UsbClient_ClearEndpoints(UsClientState *usClientState, int32_t endpoint);
-USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsClientState* usClientState, int32_t endpoint, bool& disableRx);
-USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsClientState* usClientState, int32_t endpoint);
-void TinyCLR_UsbClient_StateCallback(UsClientState* usClientState);
-uint8_t TinyCLR_UsbClient_ControlCallback(UsClientState* usClientState);
+void TinyCLR_UsbClient_ClearEvent(UsbClientState *usbClientState, uint32_t event);
+void TinyCLR_UsbClient_ClearEndpoints(UsbClientState *usbClientState, int32_t endpoint);
+USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsbClientState* usbClientState, int32_t endpoint, bool& disableRx);
+USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsbClientState* usbClientState, int32_t endpoint);
+void TinyCLR_UsbClient_StateCallback(UsbClientState* usbClientState);
+uint8_t TinyCLR_UsbClient_ControlCallback(UsbClientState* usbClientState);
 
 // LCD
 void LPC17_Display_Reset();

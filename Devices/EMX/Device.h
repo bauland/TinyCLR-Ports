@@ -17,7 +17,7 @@
 #define DEVICE_TARGET LPC24
 #define DEVICE_NAME "EMX"
 #define DEVICE_MANUFACTURER "GHI Electronics, LLC"
-#define DEVICE_VERSION ((1ULL << 48) | (0ULL << 32) | (0ULL << 16) | (10001ULL << 0))
+#define DEVICE_VERSION ((1ULL << 48) | (0ULL << 32) | (0ULL << 16) | (10003ULL << 0))
 #define DEVICE_MEMORY_PROFILE_FACTOR 9
 
 #define USB_DEBUGGER_VENDOR_ID 0x1B9F
@@ -55,11 +55,15 @@
 #define INCLUDE_CAN
 #define TOTAL_CAN_CONTROLLERS 2
 #define LPC24_CAN_BUFFER_DEFAULT_SIZE { 128, 128 }
-#define LPC24_CAN_TX_PINS { { PIN(0, 1), PF(1) }, { PIN(0, 5), PF(2) } }
-#define LPC24_CAN_RX_PINS { { PIN(0, 0), PF(1) }, { PIN(0, 4), PF(2) } }
+#define LPC24_CAN_PINS {/*          TX                     RX          */       \
+                        /*CAN0*/{ { PIN(0, 1), PF(1) },  { PIN(0, 0), PF(1) } },\
+                        /*CAN1*/{ { PIN(0, 5), PF(2) },  { PIN(0, 4), PF(2) } } \
+                       }
 
 #define INCLUDE_DAC
 #define LPC24_DAC_PINS { { PIN(0,26), PF(2)} }
+
+#define INCLUDE_DEPLOYMENT
 
 #define LPC24_DEPLOYMENT_SECTOR_START 3
 #define LPC24_DEPLOYMENT_SECTOR_END 12
@@ -67,8 +71,9 @@
 
 #define INCLUDE_I2C
 #define TOTAL_I2C_CONTROLLERS 1
-#define LPC24_I2C_SCL_PINS { { PIN(0, 28), PF(1) } }
-#define LPC24_I2C_SDA_PINS { { PIN(0, 27), PF(1) } }
+#define LPC24_I2C_PINS {/*          SDA                    SCL*/                \
+                        /*I2C0*/{ { PIN(0, 27), PF(1) }, { PIN(0, 28), PF(1) } }\
+                       }
 
 #define INCLUDE_POWER
 
@@ -83,9 +88,10 @@
 
 #define INCLUDE_SPI
 #define TOTAL_SPI_CONTROLLERS 2
-#define LPC24_SPI_SCLK_PINS { { PIN(0, 15), PF(2) }, { PIN(0,  7), PF(2) } }
-#define LPC24_SPI_MISO_PINS { { PIN(0, 17), PF(2) }, { PIN(0,  8), PF(2) } }
-#define LPC24_SPI_MOSI_PINS { { PIN(0, 18), PF(2) }, { PIN(0,  9), PF(2) } }
+#define LPC24_SPI_PINS {/*          MOSI                   MISO                   CLOCK*/               \
+                        /*SPI0*/{ { PIN(0, 18), PF(2) }, { PIN(0, 17), PF(2) }, { PIN(0, 15), PF(2) } },\
+                        /*SPI1*/{ { PIN(0,  9), PF(2) }, { PIN(0,  8), PF(2) }, { PIN(0,  7), PF(2) } } \
+                       }
 
 #define LPC24_TIME_DEFAULT_CONTROLLER_ID 0
 
@@ -95,10 +101,13 @@
 #define TOTAL_UART_CONTROLLERS 4
 #define LPC24_UART_DEFAULT_TX_BUFFER_SIZE { 16 * 1024, 16 * 1024, 16 * 1024, 16 * 1024 }
 #define LPC24_UART_DEFAULT_RX_BUFFER_SIZE { 16 * 1024, 16 * 1024, 16 * 1024, 16 * 1024 }
-#define LPC24_UART_TX_PINS              { { PIN(0, 2), PF(1) }, { PIN(2, 0) , PF(2) }, { PIN(4, 22), PF(2) }, { PIN(0, 25), PF(3) } }
-#define LPC24_UART_RX_PINS              { { PIN(0, 3), PF(1) }, { PIN(2, 1) , PF(2) }, { PIN(4, 23), PF(2) }, { PIN(0, 26), PF(3) } }
-#define LPC24_UART_RTS_PINS             { { PIN_NONE , PF_NONE }, { PIN(3, 30), PF(3) }, { PIN_NONE  , PF_NONE }, { PIN_NONE  , PF_NONE } }
-#define LPC24_UART_CTS_PINS             { { PIN_NONE , PF_NONE }, { PIN(3, 18), PF(3) }, { PIN_NONE  , PF_NONE }, { PIN_NONE  , PF_NONE } }
+
+#define LPC24_UART_PINS {/*           TX                     RX                     RTS                      CTS*/                   \
+                         /*UART0*/{ { PIN(0, 2), PF(1)  }, { PIN(0, 3), PF(1)  }, { PIN_NONE , PF_NONE  }, { PIN_NONE , PF_NONE  } },\
+                         /*UART1*/{ { PIN(2, 0) , PF(2) }, { PIN(2, 1) , PF(2) }, { PIN(3, 30), PF(3)   }, { PIN(3, 18), PF(3)   } },\
+                         /*UART2*/{ { PIN(4, 22), PF(2) }, { PIN(4, 23), PF(2) }, { PIN_NONE  , PF_NONE }, { PIN_NONE  , PF_NONE } },\
+                         /*UART3*/{ { PIN(0, 25), PF(3) }, { PIN(0, 26), PF(3) }, { PIN_NONE  , PF_NONE }, { PIN_NONE  , PF_NONE } } \
+                        }
 
 #define INCLUDE_USBCLIENT
 #define LPC24_TOTAL_USB_CONTROLLERS 1

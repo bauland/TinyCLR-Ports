@@ -96,14 +96,15 @@ struct DeploymentState {
     TinyCLR_Storage_Descriptor storageDescriptor;
     TinyCLR_Startup_DeploymentConfiguration deploymentConfiguration;
 
-    bool isOpened = false;
     bool tableInitialized = false;
+
+    uint32_t initializeCount;
 };
 
 static DeploymentState deploymentStates[TOTAL_DEPLOYMENT_CONTROLLERS];
 
 const char* flashApiNames[TOTAL_DEPLOYMENT_CONTROLLERS] = {
-    "GHIElectronics.TinyCLR.NativeApis.STM32F7.StorageController\\0"
+    "GHIElectronics.TinyCLR.NativeApis.STM32F7.InternalFlashStorageController\\0"
 };
 
 void STM32F7_Flash_EnsureTableInitialized() {
@@ -121,8 +122,6 @@ void STM32F7_Flash_EnsureTableInitialized() {
         deploymentControllers[i].Erase = &STM32F7_Flash_Erase;
         deploymentControllers[i].IsErased = &STM32F7_Flash_IsErased;
         deploymentControllers[i].GetDescriptor = &STM32F7_Flash_GetDescriptor;
-        deploymentControllers[i].IsPresent = &STM32F7_Flash_IsPresent;
-        deploymentControllers[i].SetPresenceChangedHandler = &STM32F7_Flash_SetPresenceChangedHandler;
 
         deploymentApi[i].Author = "GHI Electronics, LLC";
         deploymentApi[i].Name = flashApiNames[i];
@@ -132,6 +131,7 @@ void STM32F7_Flash_EnsureTableInitialized() {
         deploymentApi[i].State = &deploymentStates[i];
 
         deploymentStates[i].controllerIndex = i;
+        deploymentStates[i].initializeCount = 0;
         deploymentStates[i].regionCount = SIZEOF_ARRAY(deploymentSectors);
 
         deploymentStates[i].tableInitialized = true;
@@ -321,32 +321,38 @@ TinyCLR_Result __section("SectionForFlashOperations") STM32F7_Flash_Erase(const 
 TinyCLR_Result STM32F7_Flash_Acquire(const TinyCLR_Storage_Controller* self) {
     auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
 
-    if (state != nullptr)
-        if (!state->isOpened)
-            return TinyCLR_Result::Success;
-        else
-            return TinyCLR_Result::SharingViolation;
+    if (state != nullptr) {
+        state->initializeCount++;
+
+        return TinyCLR_Result::Success;
+    }
 
     return TinyCLR_Result::ArgumentNull;
 }
 
 TinyCLR_Result STM32F7_Flash_Release(const TinyCLR_Storage_Controller* self) {
-    // UnInitialize Flash can be here
-    return TinyCLR_Result::Success;
+    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
+
+    if (state != nullptr) {
+        if (state->initializeCount == 0) return TinyCLR_Result::InvalidOperation;
+
+        state->initializeCount--;
+
+        return TinyCLR_Result::Success;
+    }
+
+    return TinyCLR_Result::ArgumentNull;
 }
 
 TinyCLR_Result STM32F7_Flash_Open(const TinyCLR_Storage_Controller* self) {
     auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
 
-    if (state->isOpened)
-        return TinyCLR_Result::SharingViolation;
-
     state->storageDescriptor.CanReadDirect = true;
-    state->storageDescriptor.CanWriteDirect = true;
+    state->storageDescriptor.CanWriteDirect = false;
     state->storageDescriptor.CanExecuteDirect = true;
     state->storageDescriptor.EraseBeforeWrite = true;
     state->storageDescriptor.Removable = false;
-    state->storageDescriptor.RegionsContiguous = false;
+    state->storageDescriptor.RegionsContiguous = true;
     state->storageDescriptor.RegionsEqualSized = false;
 
     state->storageDescriptor.RegionCount = state->regionCount;
@@ -356,22 +362,14 @@ TinyCLR_Result STM32F7_Flash_Open(const TinyCLR_Storage_Controller* self) {
     state->deploymentConfiguration.RegionCount = state->storageDescriptor.RegionCount;
     state->deploymentConfiguration.RegionAddresses = state->storageDescriptor.RegionAddresses;
     state->deploymentConfiguration.RegionSizes = state->storageDescriptor.RegionSizes;
-    state->deploymentConfiguration.RegionsContiguous = false;
-    state->deploymentConfiguration.RegionsEqualSized = false;
-
-    state->isOpened = true;
+    state->deploymentConfiguration.RegionsContiguous = state->storageDescriptor.RegionsContiguous;
+    state->deploymentConfiguration.RegionsEqualSized = state->storageDescriptor.RegionsEqualSized;
 
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F7_Flash_Close(const TinyCLR_Storage_Controller* self) {
-    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
-
-    if (!state->isOpened)
-        return TinyCLR_Result::NotFound;
-
-    state->isOpened = false;
-
+    // Close internal flash
     return TinyCLR_Result::Success;
 }
 
@@ -385,15 +383,6 @@ size_t STM32F7_Flash_GetSectorSizeFormAddress(const TinyCLR_Storage_Controller* 
     }
 
     return -1;
-}
-
-TinyCLR_Result STM32F7_Flash_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler) {
-    return TinyCLR_Result::Success;
-}
-
-TinyCLR_Result STM32F7_Flash_IsPresent(const TinyCLR_Storage_Controller* self, bool& present) {
-    present = true;
-    return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result STM32F7_Flash_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& storageDescriptor) {

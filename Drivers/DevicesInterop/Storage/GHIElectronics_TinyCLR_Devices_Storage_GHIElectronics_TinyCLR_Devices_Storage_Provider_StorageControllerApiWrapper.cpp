@@ -1,24 +1,6 @@
 #include "GHIElectronics_TinyCLR_Devices_Storage.h"
 #include "../GHIElectronics_TinyCLR_InteropUtil.h"
 
-static void TinyCLR_Storage_PresenceChangedIsr(const TinyCLR_Storage_Controller* self, bool present, uint64_t timestamp) {
-    extern const TinyCLR_Api_Manager* apiManager;
-    auto interopManager = reinterpret_cast<const TinyCLR_Interop_Manager*>(apiManager->FindDefault(apiManager, TinyCLR_Api_Type::InteropManager));
-
-    if (interopManager != nullptr)
-        interopManager->RaiseEvent(interopManager, "GHIElectronics.TinyCLR.NativeEventNames.Storage.PresenceChanged", self->ApiInfo->Name, (uint64_t)present, 0, 0, 0, timestamp);
-}
-
-TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::get_IsPresent___BOOLEAN(const TinyCLR_Interop_MethodData md) {
-    auto api = reinterpret_cast<const TinyCLR_Storage_Controller*>(TinyCLR_Interop_GetApi(md, FIELD___impl___I));
-
-    TinyCLR_Interop_ClrValue ret;
-
-    md.InteropManager->GetReturn(md.InteropManager, md.Stack, ret);
-
-    return api->IsPresent(api, ret.Data.Numeric->Boolean);
-}
-
 TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::get_Descriptor___GHIElectronicsTinyCLRDevicesStorageStorageDescriptor(const TinyCLR_Interop_MethodData md) {
     auto api = reinterpret_cast<const TinyCLR_Storage_Controller*>(TinyCLR_Interop_GetApi(md, FIELD___impl___I));
 
@@ -56,19 +38,38 @@ TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_Tin
         regionsEqualSizedField.Data.Numeric->Boolean = descriptor->RegionsEqualSized;
         regionCountField.Data.Numeric->I4 = descriptor->RegionCount;
 
+        auto addressCount = descriptor->RegionCount;
+        auto sizeCount = descriptor->RegionCount;
+
+        if (descriptor->RegionsContiguous) {
+            addressCount = 1;
+        }
+
+        if (descriptor->RegionsEqualSized) {
+            sizeCount = 1;
+        }
+
+        TinyCLR_Interop_ClrValue regionAddressesFieldArray, regionSizesFieldArray;
+
         md.InteropManager->FindType(md.InteropManager, "mscorlib", "System", "Int64", type);
-        md.InteropManager->CreateArray(md.InteropManager, descriptor->RegionCount, type, regionAddressesField);
+        md.InteropManager->CreateArray(md.InteropManager, addressCount, type, regionAddressesFieldArray);
 
         md.InteropManager->FindType(md.InteropManager, "mscorlib", "System", "Int32", type);
-        md.InteropManager->CreateArray(md.InteropManager, descriptor->RegionCount, type, regionSizesField);
+        md.InteropManager->CreateArray(md.InteropManager, sizeCount, type, regionSizesFieldArray);
 
-        auto regionAddresses = reinterpret_cast<int64_t*>(regionAddressesField.Data.SzArray.Data);
-        auto regionSizes = reinterpret_cast<int32_t*>(regionSizesField.Data.SzArray.Data);
+        auto regionAddresses = reinterpret_cast<int64_t*>(regionAddressesFieldArray.Data.SzArray.Data);
+        auto regionSizes = reinterpret_cast<int32_t*>(regionSizesFieldArray.Data.SzArray.Data);
 
-        for (auto i = 0; i < descriptor->RegionCount; i++) {
+        for (auto i = 0; i < addressCount; i++) {
             regionAddresses[i] = descriptor->RegionAddresses[i];
+        }
+
+        for (auto i = 0; i < sizeCount; i++) {
             regionSizes[i] = descriptor->RegionSizes[i];
         }
+
+        md.InteropManager->AssignObjectReference(md.InteropManager, regionAddressesField, regionAddressesFieldArray.Object);
+        md.InteropManager->AssignObjectReference(md.InteropManager, regionSizesField, regionSizesFieldArray.Object);
 
         md.InteropManager->GetReturn(md.InteropManager, md.Stack, ret);
 
@@ -90,7 +91,7 @@ TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_Tin
     return api->Close(api);
 }
 
-TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Read___I4__I8__I4__SZARRAY_U1__I4__I8(const TinyCLR_Interop_MethodData md) {
+TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Read___I4__I8__I4__SZARRAY_U1__I4__mscorlibSystemTimeSpan(const TinyCLR_Interop_MethodData md) {
     auto api = reinterpret_cast<const TinyCLR_Storage_Controller*>(TinyCLR_Interop_GetApi(md, FIELD___impl___I));
 
     TinyCLR_Interop_ClrValue args[5];
@@ -99,35 +100,7 @@ TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_Tin
         md.InteropManager->GetArgument(md.InteropManager, md.Stack, i, args[i]);
     }
 
-    auto sector = static_cast<uint64_t>(args[0].Data.Numeric->I8);
-    auto count = static_cast<size_t>(args[1].Data.Numeric->I4);
-    auto buffer = reinterpret_cast<uint8_t*>(args[2].Data.SzArray.Data);
-    auto offset = args[3].Data.Numeric->I8;
-    auto timeout = args[4].Data.Numeric->I4;
-
-    buffer += offset;
-
-    auto result = api->Read(api, sector, count, buffer, timeout);
-
-    TinyCLR_Interop_ClrValue ret;
-
-    md.InteropManager->GetReturn(md.InteropManager, md.Stack, ret);
-
-    ret.Data.Numeric->I4 = count;
-
-    return result;
-}
-
-TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Write___I4__I8__I4__SZARRAY_U1__I4__I8(const TinyCLR_Interop_MethodData md) {
-    auto api = reinterpret_cast<const TinyCLR_Storage_Controller*>(TinyCLR_Interop_GetApi(md, FIELD___impl___I));
-
-    TinyCLR_Interop_ClrValue args[5];
-
-    for (auto i = 0; i < sizeof(args) / sizeof(TinyCLR_Interop_ClrValue); i++) {
-        md.InteropManager->GetArgument(md.InteropManager, md.Stack, i, args[i]);
-    }
-
-    auto sector = static_cast<uint64_t>(args[0].Data.Numeric->I8);
+    auto address = static_cast<uint64_t>(args[0].Data.Numeric->I8);
     auto count = static_cast<size_t>(args[1].Data.Numeric->I4);
     auto buffer = reinterpret_cast<uint8_t*>(args[2].Data.SzArray.Data);
     auto offset = args[3].Data.Numeric->I4;
@@ -135,7 +108,7 @@ TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_Tin
 
     buffer += offset;
 
-    auto result = api->Write(api, sector, count, buffer, timeout);
+    auto result = api->Read(api, address, count, buffer, timeout);
 
     TinyCLR_Interop_ClrValue ret;
 
@@ -146,7 +119,35 @@ TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_Tin
     return result;
 }
 
-TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Erase___I4__I8__I4__I8(const TinyCLR_Interop_MethodData md) {
+TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Write___I4__I8__I4__SZARRAY_U1__I4__mscorlibSystemTimeSpan(const TinyCLR_Interop_MethodData md) {
+    auto api = reinterpret_cast<const TinyCLR_Storage_Controller*>(TinyCLR_Interop_GetApi(md, FIELD___impl___I));
+
+    TinyCLR_Interop_ClrValue args[5];
+
+    for (auto i = 0; i < sizeof(args) / sizeof(TinyCLR_Interop_ClrValue); i++) {
+        md.InteropManager->GetArgument(md.InteropManager, md.Stack, i, args[i]);
+    }
+
+    auto address = static_cast<uint64_t>(args[0].Data.Numeric->I8);
+    auto count = static_cast<size_t>(args[1].Data.Numeric->I4);
+    auto buffer = reinterpret_cast<uint8_t*>(args[2].Data.SzArray.Data);
+    auto offset = args[3].Data.Numeric->I4;
+    auto timeout = args[4].Data.Numeric->I8;
+
+    buffer += offset;
+
+    auto result = api->Write(api, address, count, buffer, timeout);
+
+    TinyCLR_Interop_ClrValue ret;
+
+    md.InteropManager->GetReturn(md.InteropManager, md.Stack, ret);
+
+    ret.Data.Numeric->I4 = count;
+
+    return result;
+}
+
+TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Erase___I4__I8__I4__mscorlibSystemTimeSpan(const TinyCLR_Interop_MethodData md) {
     auto api = reinterpret_cast<const TinyCLR_Storage_Controller*>(TinyCLR_Interop_GetApi(md, FIELD___impl___I));
 
     TinyCLR_Interop_ClrValue args[3];
@@ -155,12 +156,12 @@ TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_Tin
         md.InteropManager->GetArgument(md.InteropManager, md.Stack, i, args[i]);
     }
 
-    auto sector = static_cast<uint64_t>(args[0].Data.Numeric->I8);
+    auto address = static_cast<uint64_t>(args[0].Data.Numeric->I8);
     auto count = static_cast<size_t>(args[1].Data.Numeric->I4);
 
     auto timeout = args[2].Data.Numeric->I8;
 
-    auto result = api->Erase(api, sector, count, timeout);
+    auto result = api->Erase(api, address, count, timeout);
 
     TinyCLR_Interop_ClrValue ret;
 
@@ -187,12 +188,7 @@ TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_Tin
 TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Acquire___VOID(const TinyCLR_Interop_MethodData md) {
     auto api = reinterpret_cast<const TinyCLR_Storage_Controller*>(TinyCLR_Interop_GetApi(md, FIELD___impl___I));
 
-    auto res = api->Acquire(api);
-
-    if (res == TinyCLR_Result::Success)
-        res = api->SetPresenceChangedHandler(api, TinyCLR_Storage_PresenceChangedIsr);
-
-    return res;
+    return api->Acquire(api);
 }
 
 TinyCLR_Result Interop_GHIElectronics_TinyCLR_Devices_Storage_GHIElectronics_TinyCLR_Devices_Storage_Provider_StorageControllerApiWrapper::Release___VOID(const TinyCLR_Interop_MethodData md) {

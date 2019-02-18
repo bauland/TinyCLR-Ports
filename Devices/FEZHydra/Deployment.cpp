@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <AT91.h>
+#include <AT91SAM9Rx64.h>
 #include "../../Drivers/AT45DB321D_Flash/AT45DB321D_Flash.h"
 
 #define TOTAL_DEPLOYMENT_CONTROLLERS 1
@@ -31,33 +31,31 @@ struct DeploymentState {
     TinyCLR_Storage_Descriptor storageDescriptor;
     TinyCLR_Startup_DeploymentConfiguration deploymentConfiguration;
 
-    bool isOpened = false;
+    uint32_t initializeCount;
     bool tableInitialized = false;
 };
 
 static DeploymentState deploymentStates[TOTAL_DEPLOYMENT_CONTROLLERS];
 
 const char* deploymentApiNames[TOTAL_DEPLOYMENT_CONTROLLERS] = {
-    "GHIElectronics.TinyCLR.NativeApis.LPC17.StorageController\\0"
+    "GHIElectronics.TinyCLR.NativeApis.AT45DB321D.StorageController\\0"
 };
 
-void AT91_Deployment_EnsureTableInitialized() {
+void AT91SAM9Rx64_Deployment_EnsureTableInitialized() {
     for (auto i = 0; i < TOTAL_DEPLOYMENT_CONTROLLERS; i++) {
         if (deploymentStates[i].tableInitialized)
             continue;
 
         deploymentControllers[i].ApiInfo = &deploymentApi[i];
-        deploymentControllers[i].Acquire = &AT91_Deployment_Acquire;
-        deploymentControllers[i].Release = &AT91_Deployment_Release;
-        deploymentControllers[i].Open = &AT91_Deployment_Open;
-        deploymentControllers[i].Close = &AT91_Deployment_Close;
-        deploymentControllers[i].Read = &AT91_Deployment_Read;
-        deploymentControllers[i].Write = &AT91_Deployment_Write;
-        deploymentControllers[i].Erase = &AT91_Deployment_Erase;
-        deploymentControllers[i].IsErased = &AT91_Deployment_IsErased;
-        deploymentControllers[i].GetDescriptor = &AT91_Deployment_GetDescriptor;
-        deploymentControllers[i].IsPresent = &AT91_Deployment_IsPresent;
-        deploymentControllers[i].SetPresenceChangedHandler = &AT91_Deployment_SetPresenceChangedHandler;
+        deploymentControllers[i].Acquire = &AT91SAM9Rx64_Deployment_Acquire;
+        deploymentControllers[i].Release = &AT91SAM9Rx64_Deployment_Release;
+        deploymentControllers[i].Open = &AT91SAM9Rx64_Deployment_Open;
+        deploymentControllers[i].Close = &AT91SAM9Rx64_Deployment_Close;
+        deploymentControllers[i].Read = &AT91SAM9Rx64_Deployment_Read;
+        deploymentControllers[i].Write = &AT91SAM9Rx64_Deployment_Write;
+        deploymentControllers[i].Erase = &AT91SAM9Rx64_Deployment_Erase;
+        deploymentControllers[i].IsErased = &AT91SAM9Rx64_Deployment_IsErased;
+        deploymentControllers[i].GetDescriptor = &AT91SAM9Rx64_Deployment_GetDescriptor;
 
         deploymentApi[i].Author = "GHI Electronics, LLC";
         deploymentApi[i].Name = deploymentApiNames[i];
@@ -67,14 +65,15 @@ void AT91_Deployment_EnsureTableInitialized() {
         deploymentApi[i].State = &deploymentStates[i];
 
         deploymentStates[i].controllerIndex = i;
-        deploymentStates[i].regionCount = AT91_DEPLOYMENT_SECTOR_NUM;
+        deploymentStates[i].initializeCount = 0;
+        deploymentStates[i].regionCount = AT91SAM9Rx64_DEPLOYMENT_SECTOR_NUM;
 
         deploymentStates[i].tableInitialized = true;
     }
 }
 
-void AT91_Deployment_GetDeploymentApi(const TinyCLR_Api_Info*& api, const TinyCLR_Startup_DeploymentConfiguration*& configuration) {
-    AT91_Deployment_EnsureTableInitialized();
+void AT91SAM9Rx64_Deployment_GetDeploymentApi(const TinyCLR_Api_Info*& api, const TinyCLR_Startup_DeploymentConfiguration*& configuration) {
+    AT91SAM9Rx64_Deployment_EnsureTableInitialized();
 
     auto state = &deploymentStates[0];
 
@@ -82,8 +81,8 @@ void AT91_Deployment_GetDeploymentApi(const TinyCLR_Api_Info*& api, const TinyCL
     configuration = &state->deploymentConfiguration;
 }
 
-void AT91_Deployment_AddApi(const TinyCLR_Api_Manager* apiManager) {
-    AT91_Deployment_EnsureTableInitialized();
+void AT91SAM9Rx64_Deployment_AddApi(const TinyCLR_Api_Manager* apiManager) {
+    AT91SAM9Rx64_Deployment_EnsureTableInitialized();
 
     for (auto i = 0; i < TOTAL_DEPLOYMENT_CONTROLLERS; i++) {
         apiManager->Add(apiManager, &deploymentApi[i]);
@@ -92,37 +91,63 @@ void AT91_Deployment_AddApi(const TinyCLR_Api_Manager* apiManager) {
     apiManager->SetDefaultName(apiManager, TinyCLR_Api_Type::StorageController, deploymentApi[0].Name);
 }
 
-TinyCLR_Result AT91_Deployment_Acquire(const TinyCLR_Storage_Controller* self) {
-    auto spiApi = CONCAT(DEVICE_TARGET, _Spi_GetRequiredApi)();
-
-    spiApi += AT91_DEPLOYMENT_SPI_PORT;
-
-    TinyCLR_Spi_Controller* spiController = (TinyCLR_Spi_Controller*)spiApi->Implementation;
-
-    auto timeApi = CONCAT(DEVICE_TARGET, _Time_GetRequiredApi)();
-
-    TinyCLR_NativeTime_Controller* timerController = (TinyCLR_NativeTime_Controller*)timeApi->Implementation;
-
-    return AT45DB321D_Flash_Acquire(spiController, timerController, AT91_DEPLOYMENT_SPI_ENABLE_PIN);
-}
-
-TinyCLR_Result AT91_Deployment_Release(const TinyCLR_Storage_Controller* self) {
-    return AT45DB321D_Flash_Release();
-}
-
-TinyCLR_Result AT91_Deployment_Open(const TinyCLR_Storage_Controller* self) {
+TinyCLR_Result AT91SAM9Rx64_Deployment_Acquire(const TinyCLR_Storage_Controller* self) {
     auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
 
-    if (state->isOpened)
-        return TinyCLR_Result::SharingViolation;
+    TinyCLR_Result result = TinyCLR_Result::Success;
 
-    state->storageDescriptor.CanReadDirect = true;
-    state->storageDescriptor.CanWriteDirect = true;
+    if (state != nullptr) {
+        if (state->initializeCount == 0) {
+            auto spiApi = CONCAT(DEVICE_TARGET, _Spi_GetRequiredApi)();
+
+            spiApi += AT91SAM9Rx64_DEPLOYMENT_SPI_PORT;
+
+            TinyCLR_Spi_Controller* spiController = (TinyCLR_Spi_Controller*)spiApi->Implementation;
+
+            auto timeApi = CONCAT(DEVICE_TARGET, _Time_GetRequiredApi)();
+
+            TinyCLR_NativeTime_Controller* timerController = (TinyCLR_NativeTime_Controller*)timeApi->Implementation;
+
+            result = AT45DB321D_Flash_Acquire(spiController, timerController, AT91SAM9Rx64_DEPLOYMENT_SPI_ENABLE_PIN);
+        }
+
+        if (result == TinyCLR_Result::Success) {
+            state->initializeCount++;
+        }
+    }
+
+    return result = (state != nullptr) ? result : TinyCLR_Result::ArgumentNull;
+}
+
+TinyCLR_Result AT91SAM9Rx64_Deployment_Release(const TinyCLR_Storage_Controller* self) {
+    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
+
+    TinyCLR_Result result = TinyCLR_Result::Success;
+
+    if (state != nullptr) {
+        if (state->initializeCount == 0)
+            return TinyCLR_Result::InvalidOperation;
+
+        result = AT45DB321D_Flash_Release();
+
+        if (result == TinyCLR_Result::Success) {
+            state->initializeCount--;
+        }
+    }
+
+    return result = (state != nullptr) ? result : TinyCLR_Result::ArgumentNull;
+}
+
+TinyCLR_Result AT91SAM9Rx64_Deployment_Open(const TinyCLR_Storage_Controller* self) {
+    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
+
+    state->storageDescriptor.CanReadDirect = false;
+    state->storageDescriptor.CanWriteDirect = false;
     state->storageDescriptor.CanExecuteDirect = false;
     state->storageDescriptor.EraseBeforeWrite = true;
     state->storageDescriptor.Removable = false;
-    state->storageDescriptor.RegionsContiguous = false;
-    state->storageDescriptor.RegionsEqualSized = false;
+    state->storageDescriptor.RegionsContiguous = true;
+    state->storageDescriptor.RegionsEqualSized = true;
 
     size_t regionCount;
 
@@ -131,8 +156,8 @@ TinyCLR_Result AT91_Deployment_Open(const TinyCLR_Storage_Controller* self) {
     if (regionCount < state->regionCount)
         return TinyCLR_Result::ArgumentOutOfRange;
 
-    state->regionAddresses += AT91_DEPLOYMENT_SECTOR_START;
-    state->regionSizes += AT91_DEPLOYMENT_SECTOR_START;
+    state->regionAddresses += AT91SAM9Rx64_DEPLOYMENT_SECTOR_START;
+    state->regionSizes += AT91SAM9Rx64_DEPLOYMENT_SECTOR_START;
 
     state->storageDescriptor.RegionCount = state->regionCount;
     state->storageDescriptor.RegionAddresses = reinterpret_cast<const uint64_t*>(state->regionAddresses);
@@ -141,63 +166,46 @@ TinyCLR_Result AT91_Deployment_Open(const TinyCLR_Storage_Controller* self) {
     state->deploymentConfiguration.RegionCount = state->storageDescriptor.RegionCount;
     state->deploymentConfiguration.RegionAddresses = state->storageDescriptor.RegionAddresses;
     state->deploymentConfiguration.RegionSizes = state->storageDescriptor.RegionSizes;
-    state->deploymentConfiguration.RegionsContiguous = false;
-    state->deploymentConfiguration.RegionsEqualSized = false;
-
-    state->isOpened = true;
+    state->deploymentConfiguration.RegionsContiguous = state->storageDescriptor.RegionsContiguous;
+    state->deploymentConfiguration.RegionsEqualSized = state->storageDescriptor.RegionsEqualSized;
 
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_Deployment_Close(const TinyCLR_Storage_Controller* self) {
-    auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
-
-    if (!state->isOpened)
-        return TinyCLR_Result::NotFound;
-
-    state->isOpened = false;
-
+TinyCLR_Result AT91SAM9Rx64_Deployment_Close(const TinyCLR_Storage_Controller* self) {
+    // Close internal flash
     return TinyCLR_Result::Success;
 }
 
-TinyCLR_Result AT91_Deployment_Read(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint8_t* data, uint64_t timeout) {
+TinyCLR_Result AT91SAM9Rx64_Deployment_Read(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint8_t* data, uint64_t timeout) {
     return AT45DB321D_Flash_Read(address, count, data);
 }
 
-TinyCLR_Result AT91_Deployment_Write(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, const uint8_t* data, uint64_t timeout) {
+TinyCLR_Result AT91SAM9Rx64_Deployment_Write(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, const uint8_t* data, uint64_t timeout) {
     return AT45DB321D_Flash_Write(address, count, data);;
 }
 
-TinyCLR_Result AT91_Deployment_Erase(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint64_t timeout) {
+TinyCLR_Result AT91SAM9Rx64_Deployment_Erase(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint64_t timeout) {
     auto sector = address;
 
-    sector += AT91_DEPLOYMENT_SECTOR_START;
+    sector += AT91SAM9Rx64_DEPLOYMENT_SECTOR_START;
 
     return AT45DB321D_Flash_EraseBlock(sector);
 }
 
-TinyCLR_Result AT91_Deployment_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased) {
+TinyCLR_Result AT91SAM9Rx64_Deployment_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased) {
     auto sector = address;
 
-    sector += AT91_DEPLOYMENT_SECTOR_START;
+    sector += AT91SAM9Rx64_DEPLOYMENT_SECTOR_START;
 
     return AT45DB321D_Flash_IsBlockErased(sector, erased);
 }
 
-TinyCLR_Result AT91_Deployment_GetBytesPerSector(const TinyCLR_Storage_Controller* self, uint32_t address, int32_t& size) {
+TinyCLR_Result AT91SAM9Rx64_Deployment_GetBytesPerSector(const TinyCLR_Storage_Controller* self, uint32_t address, int32_t& size) {
     return AT45DB321D_Flash_GetBytesPerSector(address, size);
 }
 
-TinyCLR_Result AT91_Deployment_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler) {
-    return TinyCLR_Result::Success;
-}
-
-TinyCLR_Result AT91_Deployment_IsPresent(const TinyCLR_Storage_Controller* self, bool& present) {
-    present = true;
-    return TinyCLR_Result::Success;
-}
-
-TinyCLR_Result AT91_Deployment_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor) {
+TinyCLR_Result AT91SAM9Rx64_Deployment_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor) {
     auto state = reinterpret_cast<DeploymentState*>(self->ApiInfo->State);
 
     descriptor = &state->storageDescriptor;
@@ -205,7 +213,7 @@ TinyCLR_Result AT91_Deployment_GetDescriptor(const TinyCLR_Storage_Controller* s
     return descriptor->RegionCount > 0 ? TinyCLR_Result::Success : TinyCLR_Result::NotAvailable;
 }
 
-const TinyCLR_Startup_DeploymentConfiguration* AT91_Deployment_GetDeploymentConfiguration() {
+const TinyCLR_Startup_DeploymentConfiguration* AT91SAM9Rx64_Deployment_GetDeploymentConfiguration() {
     auto state = &deploymentStates[0];
 
     return reinterpret_cast<const TinyCLR_Startup_DeploymentConfiguration*>(&state->deploymentConfiguration);

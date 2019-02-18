@@ -39,8 +39,6 @@ TinyCLR_Result STM32F7_Flash_Write(const TinyCLR_Storage_Controller* self, uint6
 TinyCLR_Result STM32F7_Flash_Erase(const TinyCLR_Storage_Controller* self, uint64_t address, size_t& count, uint64_t timeout);
 TinyCLR_Result STM32F7_Flash_IsErased(const TinyCLR_Storage_Controller* self, uint64_t address, size_t count, bool& erased);
 TinyCLR_Result STM32F7_Flash_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
-TinyCLR_Result STM32F7_Flash_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
-TinyCLR_Result STM32F7_Flash_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
 TinyCLR_Result STM32F7_Flash_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result STM32F7_Flash_Close(const TinyCLR_Storage_Controller* self);
 const TinyCLR_Startup_DeploymentConfiguration* STM32F7_Flash_GetDeploymentConfiguration();
@@ -68,7 +66,7 @@ const TinyCLR_Api_Info* STM32F7_Power_GetRequiredApi();
 TinyCLR_Result STM32F7_Power_Initialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result STM32F7_Power_Uninitialize(const TinyCLR_Power_Controller* self);
 TinyCLR_Result STM32F7_Power_Reset(const TinyCLR_Power_Controller* self, bool runCoreAfter);
-TinyCLR_Result STM32F7_Power_Sleep(const TinyCLR_Power_Controller* self, TinyCLR_Power_SleepLevel level, TinyCLR_Power_SleepWakeSource wakeSource);
+TinyCLR_Result STM32F7_Power_SetLevel(const TinyCLR_Power_Controller* self, TinyCLR_Power_Level level, TinyCLR_Power_WakeSource wakeSource, uint64_t data);
 
 ////////////////////////////////////////////////////////////////////////////////
 //Time
@@ -85,6 +83,7 @@ TinyCLR_Result STM32F7_Time_SetTickCallback(const TinyCLR_NativeTime_Controller*
 TinyCLR_Result STM32F7_Time_SetNextTickCallbackTime(const TinyCLR_NativeTime_Controller* self, uint64_t processorTicks);
 void STM32F7_Time_Delay(const TinyCLR_NativeTime_Controller* self, uint64_t microseconds);
 void STM32F7_Time_DelayNative(const TinyCLR_NativeTime_Controller* self, uint64_t nativeTime);
+uint64_t STM32F7_Time_GetSystemTime(const TinyCLR_NativeTime_Controller* self);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,8 +94,9 @@ void STM32F7_Startup_GetHeap(uint8_t*& start, size_t& length);
 void STM32F7_Startup_GetDebuggerTransportApi(const TinyCLR_Api_Info*& api, const void*& configuration);
 void STM32F7_Startup_GetDeploymentApi(const TinyCLR_Api_Info*& api, const TinyCLR_Startup_DeploymentConfiguration*& configuration);
 void STM32F7_Startup_GetRunApp(bool& runApp);
-void STM32F7_Startup_CacheEnable(void);
-void STM32F7_Startup_CacheDisable(void);
+void STM32F7_Startup_CacheEnable();
+void STM32F7_Startup_CacheDisable();
+void STM32F7_Startup_MpuConfiguration();
 
 ////////////////////////////////////////////////////////////////////////////////
 //ADC
@@ -191,6 +191,56 @@ TinyCLR_Result STM32F7_I2c_WriteRead(const TinyCLR_I2c_Controller* self, const u
 void STM32F7_I2c_Reset();
 
 ////////////////////////////////////////////////////////////////////////////////
+//MPU
+////////////////////////////////////////////////////////////////////////////////
+enum class STM32F7_Mpu_RegionSize : uint32_t {
+    Size_32Bytes = 0x04,
+    Size_64Bytes = 0x05,
+    Size_128Bytes = 0x06,
+    Size_256Bytes = 0x07,
+    Size_512ytes = 0x08,
+    Size_1KBytes = 0x09,
+    Size_2KBytes = 0x0A,
+    Size_4Kytes = 0x0B,
+    Size_8KBytes = 0x0C,
+    Size_16KBytes = 0x0D,
+    Size_32KBytes = 0x0E,
+    Size_64KBytes = 0x0F,
+    Size_128KBytes = 0x10,
+    Size_256KBytes = 0x11,
+    Size_512KBytes = 0x12,
+    Size_1MBytes = 0x13,
+    Size_2MBytes = 0x14,
+    Size_4MBytes = 0x15,
+    Size_8MBytes = 0x16,
+    Size_16MBytes = 0x17,
+    Size_32MBytes = 0x18,
+    Size_64MBytes = 0x19,
+    Size_128MBytes = 0x1A,
+    Size_256MBytes = 0x1B,
+    Size_512MBytes = 0x1C,
+    Size_1GBytes = 0x1D,
+    Size_2GBytes = 0x1E,
+    Size_4GBytes = 0x1F,
+};
+
+enum class STM32F7_Mpu_RegionNumber : uint8_t {
+    Region0 = 0x00,
+    Region1 = 0x01,
+    Region2 = 0x02,
+    Region3 = 0x03,
+    Region4 = 0x04,
+    Region5 = 0x05,
+    Region6 = 0x06,
+    Region7 = 0x07,
+};
+
+void STM32F7_Mpu_Reset();
+void STM32F7_Mpu_Enable(uint32_t mpuControl);
+void STM32F7_Mpu_Disable();
+void STM32F7_Mpu_Configuration(uint32_t address, STM32F7_Mpu_RegionSize mpuRegionSize, STM32F7_Mpu_RegionNumber mpuRegionNumber, bool doCache);
+
+////////////////////////////////////////////////////////////////////////////////
 //PWM
 ////////////////////////////////////////////////////////////////////////////////
 void STM32F7_Pwm_AddApi(const TinyCLR_Api_Manager* apiManager);
@@ -232,8 +282,6 @@ TinyCLR_Result STM32F7_SdCard_Erases(const TinyCLR_Storage_Controller* self, uin
 TinyCLR_Result STM32F7_SdCard_GetDescriptor(const TinyCLR_Storage_Controller* self, const TinyCLR_Storage_Descriptor*& descriptor);
 TinyCLR_Result STM32F7_SdCard_Open(const TinyCLR_Storage_Controller* self);
 TinyCLR_Result STM32F7_SdCard_Close(const TinyCLR_Storage_Controller* self);
-TinyCLR_Result STM32F7_SdCard_SetPresenceChangedHandler(const TinyCLR_Storage_Controller* self, TinyCLR_Storage_PresenceChangedHandler handler);
-TinyCLR_Result STM32F7_SdCard_IsPresent(const TinyCLR_Storage_Controller* self, bool& present);
 
 TinyCLR_Result STM32F7_SdCard_Reset();
 
@@ -291,16 +339,16 @@ const TinyCLR_Api_Info* STM32F7_UsbDevice_GetRequiredApi();
 void STM32F7_UsbDevice_Reset();
 
 struct USB_PACKET64;
-struct UsClientState;
-typedef void(*USB_NEXT_CALLBACK)(UsClientState*);
+struct UsbClientState;
+typedef void(*USB_NEXT_CALLBACK)(UsbClientState*);
 
-void TinyCLR_UsbClient_ClearEvent(UsClientState *usClientState, uint32_t event);
-void TinyCLR_UsbClient_ClearEndpoints(UsClientState *usClientState, int32_t endpoint);
-USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsClientState* usClientState, int32_t endpoint, bool& disableRx);
-USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsClientState* usClientState, int32_t endpoint);
-void TinyCLR_UsbClient_StateCallback(UsClientState* usClientState);
-uint8_t TinyCLR_UsbClient_ControlCallback(UsClientState* usClientState);
-bool TinyCLR_UsbClient_CanReceivePackage(UsClientState* usClientState, int32_t endpoint);
+void TinyCLR_UsbClient_ClearEvent(UsbClientState *usbClientState, uint32_t event);
+void TinyCLR_UsbClient_ClearEndpoints(UsbClientState *usbClientState, int32_t endpoint);
+USB_PACKET64* TinyCLR_UsbClient_RxEnqueue(UsbClientState* usbClientState, int32_t endpoint, bool& disableRx);
+USB_PACKET64* TinyCLR_UsbClient_TxDequeue(UsbClientState* usbClientState, int32_t endpoint);
+void TinyCLR_UsbClient_StateCallback(UsbClientState* usbClientState);
+uint8_t TinyCLR_UsbClient_ControlCallback(UsbClientState* usbClientState);
+bool TinyCLR_UsbClient_CanReceivePackage(UsbClientState* usbClientState, int32_t endpoint);
 
 ////////////////////////////////////////////////////////////////////////////////
 //Interrupt Internal
@@ -402,8 +450,8 @@ struct STM32F7_Gpio_PinConfiguration {
 #define ANALOG() INIT(Analog, PushPull, VeryHigh, false, None, AF0, true)
 #define OUTPUT(outputType, outputSpeed, outputDirection, pullDirection) INIT(GeneralPurposeOutput, outputType, outputSpeed, outputDirection, pullDirection, AF0, true)
 #define INPUT(pullDirection) INIT(Input, PushPull, VeryHigh, false, pullDirection, AF0, true)
-#define DEFAULT() INIT(Input, PushPull, VeryHigh, false, PullDown, AF0, true)
-#define NO_INIT() INIT(Input, PushPull, VeryHigh, false, PullDown, AF0, false)
+#define DEFAULT() INIT(Input, PushPull, VeryHigh, false, PullUp, AF0, true)
+#define NO_INIT() INIT(Input, PushPull, VeryHigh, false, None, AF0, false)
 
 bool STM32F7_GpioInternal_OpenPin(int32_t pin);
 bool STM32F7_GpioInternal_ClosePin(int32_t pin);
@@ -411,6 +459,7 @@ bool STM32F7_GpioInternal_ReadPin(int32_t pin);
 void STM32F7_GpioInternal_WritePin(int32_t pin, bool value);
 bool STM32F7_GpioInternal_ConfigurePin(int32_t pin, STM32F7_Gpio_PortMode portMode, STM32F7_Gpio_OutputType outputType, STM32F7_Gpio_OutputSpeed outputSpeed, STM32F7_Gpio_PullDirection pullDirection, STM32F7_Gpio_AlternateFunction alternateFunction);
 void STM32F7_Gpio_Reset();
+bool STM32F7_GpioInternal_OpenMultiPins(const STM32F7_Gpio_Pin* pins, size_t count);
 
 void STM32F7_Display_Reset();
 void STM32F7_Display_AddApi(const TinyCLR_Api_Manager* apiManager);

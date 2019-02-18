@@ -24,6 +24,8 @@
 
 static const uint32_t canDefaultBuffersSize[] = LPC17_CAN_BUFFER_DEFAULT_SIZE;
 
+#define CAN_MINIMUM_MESSAGES_LEFT 3
+
 #define CAN_TRANSFER_TIMEOUT 0xFFFF
 
 #define CAN_MEM_BASE        0xE0038000
@@ -2005,7 +2007,7 @@ typedef struct {
 struct CanState {
     int32_t controllerIndex;
 
-    const TinyCLR_Can_Controller* provider;
+    const TinyCLR_Can_Controller* controller;
 
     LPC17_Can_Message *canRxMessagesFifo;
 
@@ -2028,8 +2030,10 @@ struct CanState {
     bool enable;
 };
 
-static const LPC17_Gpio_Pin canTxPins[] = LPC17_CAN_TX_PINS;
-static const LPC17_Gpio_Pin canRxPins[] = LPC17_CAN_RX_PINS;
+#define CAN_TX_PIN 0
+#define CAN_RX_PIN 1
+
+static const LPC17_Gpio_Pin canPins[][2] = LPC17_CAN_PINS;
 
 static CanState canStates[TOTAL_CAN_CONTROLLERS];
 
@@ -2243,6 +2247,7 @@ void LPC17_Can_AddApi(const TinyCLR_Api_Manager* apiManager) {
         canControllers[i].ReadMessage = &LPC17_Can_ReadMessage;
         canControllers[i].SetBitTiming = &LPC17_Can_SetBitTiming;
         canControllers[i].GetMessagesToRead = &LPC17_Can_GetMessagesToRead;
+        canControllers[i].GetMessagesToWrite = &LPC17_Can_GetMessagesToWrite;
         canControllers[i].SetMessageReceivedHandler = &LPC17_Can_SetMessageReceivedHandler;
         canControllers[i].SetErrorReceivedHandler = &LPC17_Can_SetErrorReceivedHandler;
         canControllers[i].SetExplicitFilters = &LPC17_Can_SetExplicitFilters;
@@ -2264,6 +2269,8 @@ void LPC17_Can_AddApi(const TinyCLR_Api_Manager* apiManager) {
         canApi[i].State = &canStates[i];
 
         canStates[i].controllerIndex = i;
+        canStates[i].initializeCount = 0;
+        canStates[i].canRxMessagesFifo = nullptr;
 
         apiManager->Add(apiManager, &canApi[i]);
     }
@@ -2306,22 +2313,27 @@ void CAN_ISR_Rx(int32_t controllerIndex) {
         }
     }
 
-    if (state->can_rx_count > (state->can_rxBufferSize - 3)) {
+    // timestamp
+    uint64_t t = LPC17_Time_GetSystemTime(nullptr);
+
+    if (state->can_rx_count == state->can_rxBufferSize) { // Return if internal buffer is full
         if (controllerIndex == 0)
             C1CMR = 0x04; // release receive buffer
         else
             C2CMR = 0x04; // release receive buffer
 
-        state->errorEventHandler(state->provider, TinyCLR_Can_Error::BufferFull, LPC17_Time_GetCurrentProcessorTime());
+        state->errorEventHandler(state->controller, TinyCLR_Can_Error::BufferFull, t);
 
         return;
     }
+    else if (state->can_rx_count >= state->can_rxBufferSize - CAN_MINIMUM_MESSAGES_LEFT) { // Raise full event soon when internal buffer has only 3 availble msg left
+        state->errorEventHandler(state->controller, TinyCLR_Can_Error::BufferFull, t);
+    }
+    
+    if (!state->enable) return; // Not copy to internal buffer if enable if off
 
     // initialize destination pointer
     LPC17_Can_Message *can_msg = &state->canRxMessagesFifo[state->can_rx_in];
-
-    // timestamp
-    uint64_t t = LPC17_Time_GetCurrentProcessorTime();
 
     can_msg->timeStampL = t & 0xFFFFFFFF;
     can_msg->timeStampH = t >> 32;
@@ -2365,7 +2377,10 @@ void CAN_ISR_Rx(int32_t controllerIndex) {
         state->can_rx_in = 0;
     }
 
-    state->messageReceivedEventHandler(state->provider, state->can_rx_count, LPC17_Time_GetCurrentProcessorTime());
+    // If we raise count here, because interrupt faster than raising an event, example there are only 2 messages comming,
+	// the first event will raise 1 message, the second will raise 2 messages in buffer if the first msg isn't read yet.
+	// This cause misunderstanding to user that there are 3 msg totally.
+    state->messageReceivedEventHandler(state->controller, 1, t);
 }
 void LPC17_Can_RxInterruptHandler(void *param) {
     uint32_t status = CANRxSR;
@@ -2384,14 +2399,14 @@ void LPC17_Can_RxInterruptHandler(void *param) {
         CAN_ISR_Rx(controllerIndex);
 
         if (c1 & (1 << 3)) {
-            state->errorEventHandler(state->provider, TinyCLR_Can_Error::Overrun, LPC17_Time_GetCurrentProcessorTime());
+            state->errorEventHandler(state->controller, TinyCLR_Can_Error::Overrun, LPC17_Time_GetSystemTime(nullptr));
         }
         if (c1 & (1 << 5)) {
-            state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive, LPC17_Time_GetCurrentProcessorTime());
+            state->errorEventHandler(state->controller, TinyCLR_Can_Error::Passive, LPC17_Time_GetSystemTime(nullptr));
         }
         if (c1 & (1 << 7)) {
             C1MOD = 1;    // Reset CAN
-            state->errorEventHandler(state->provider, TinyCLR_Can_Error::BusOff, LPC17_Time_GetCurrentProcessorTime());
+            state->errorEventHandler(state->controller, TinyCLR_Can_Error::BusOff, LPC17_Time_GetSystemTime(nullptr));
         }
 
     }
@@ -2405,14 +2420,14 @@ void LPC17_Can_RxInterruptHandler(void *param) {
         CAN_ISR_Rx(controllerIndex);
 
         if (c2 & (1 << 3)) {
-            state->errorEventHandler(state->provider, TinyCLR_Can_Error::Overrun, LPC17_Time_GetCurrentProcessorTime());
+            state->errorEventHandler(state->controller, TinyCLR_Can_Error::Overrun, LPC17_Time_GetSystemTime(nullptr));
         }
         if (c2 & (1 << 5)) {
-            state->errorEventHandler(state->provider, TinyCLR_Can_Error::Passive, LPC17_Time_GetCurrentProcessorTime());
+            state->errorEventHandler(state->controller, TinyCLR_Can_Error::Passive, LPC17_Time_GetSystemTime(nullptr));
         }
         if (c2 & (1 << 7)) {
             C2MOD = 1;    // Reset CAN
-            state->errorEventHandler(state->provider, TinyCLR_Can_Error::BusOff, LPC17_Time_GetCurrentProcessorTime());
+            state->errorEventHandler(state->controller, TinyCLR_Can_Error::BusOff, LPC17_Time_GetSystemTime(nullptr));
         }
     }
 }
@@ -2426,22 +2441,19 @@ TinyCLR_Result LPC17_Can_Acquire(const TinyCLR_Can_Controller* self) {
     if (state->initializeCount == 0) {
         auto controllerIndex = state->controllerIndex;
 
-        if (!LPC17_Gpio_OpenPin(canTxPins[controllerIndex].number))
-            return TinyCLR_Result::SharingViolation;
-
-        if (!LPC17_Gpio_OpenPin(canRxPins[controllerIndex].number))
+        if (!LPC17_GpioInternal_OpenMultiPins(canPins[controllerIndex], 2))
             return TinyCLR_Result::SharingViolation;
 
         // set pin as analog
-        LPC17_Gpio_ConfigurePin(canTxPins[controllerIndex].number, LPC17_Gpio_Direction::Input, canTxPins[controllerIndex].pinFunction, LPC17_Gpio_ResistorMode::Inactive, LPC17_Gpio_Hysteresis::Disable, LPC17_Gpio_InputPolarity::NotInverted, LPC17_Gpio_SlewRate::StandardMode, LPC17_Gpio_OutputType::PushPull);
-        LPC17_Gpio_ConfigurePin(canRxPins[controllerIndex].number, LPC17_Gpio_Direction::Input, canRxPins[controllerIndex].pinFunction, LPC17_Gpio_ResistorMode::Inactive, LPC17_Gpio_Hysteresis::Disable, LPC17_Gpio_InputPolarity::NotInverted, LPC17_Gpio_SlewRate::StandardMode, LPC17_Gpio_OutputType::PushPull);
+        LPC17_GpioInternal_ConfigurePin(canPins[controllerIndex][CAN_TX_PIN].number, LPC17_Gpio_Direction::Input, canPins[controllerIndex][CAN_TX_PIN].pinFunction, LPC17_Gpio_ResistorMode::Inactive, LPC17_Gpio_Hysteresis::Disable, LPC17_Gpio_InputPolarity::NotInverted, LPC17_Gpio_SlewRate::StandardMode, LPC17_Gpio_OutputType::PushPull);
+        LPC17_GpioInternal_ConfigurePin(canPins[controllerIndex][CAN_RX_PIN].number, LPC17_Gpio_Direction::Input, canPins[controllerIndex][CAN_RX_PIN].pinFunction, LPC17_Gpio_ResistorMode::Inactive, LPC17_Gpio_Hysteresis::Disable, LPC17_Gpio_InputPolarity::NotInverted, LPC17_Gpio_SlewRate::StandardMode, LPC17_Gpio_OutputType::PushPull);
 
         state->can_rx_count = 0;
         state->can_rx_in = 0;
         state->can_rx_out = 0;
         state->baudrate = 0;
         state->can_rxBufferSize = canDefaultBuffersSize[controllerIndex];
-        state->provider = self;
+        state->controller = self;
         state->enable = false;
 
         state->canDataFilter.matchFiltersSize = 0;
@@ -2449,13 +2461,7 @@ TinyCLR_Result LPC17_Can_Acquire(const TinyCLR_Can_Controller* self) {
 
         state->canRxMessagesFifo = nullptr;
 
-        if (controllerIndex == 0)
-            LPC_SC->PCONP |= (1 << 13);    // Enable clock to the peripheral
-
-        if (controllerIndex == 1)
-            LPC_SC->PCONP |= (1 << 14);    // Enable clock to the peripheral
-
-        CAN_SetACCF(ACCF_BYPASS);
+        LPC17_Can_SetReadBufferSize(self, canDefaultBuffersSize[controllerIndex]);
     }
 
     state->initializeCount++;
@@ -2476,8 +2482,9 @@ TinyCLR_Result LPC17_Can_Release(const TinyCLR_Can_Controller* self) {
     if (state->initializeCount == 0) {
         auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
 
-
         auto controllerIndex = state->controllerIndex;
+
+        self->Disable(self);
 
         if (state->canRxMessagesFifo != nullptr) {
             memoryProvider->Free(memoryProvider, state->canRxMessagesFifo);
@@ -2488,37 +2495,8 @@ TinyCLR_Result LPC17_Can_Release(const TinyCLR_Can_Controller* self) {
         CAN_DisableExplicitFilters(controllerIndex);
         CAN_DisableGroupFilters(controllerIndex);
 
-        LPC17_Gpio_ClosePin(canTxPins[controllerIndex].number);
-        LPC17_Gpio_ClosePin(canRxPins[controllerIndex].number);
-    }
-
-    return TinyCLR_Result::Success;
-}
-
-TinyCLR_Result LPC17_Can_SoftReset(const TinyCLR_Can_Controller* self) {
-    auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
-    auto controllerIndex = state->controllerIndex;
-
-    state->can_rx_count = 0;
-    state->can_rx_in = 0;
-    state->can_rx_out = 0;
-
-    // Reset CAN
-    if (controllerIndex == 0) {
-        C1MOD = 1;    // Reset CAN
-        C1IER = 0;    // Disable Receive Interrupt
-        C1GSR = 0;    // Reset error counter when CANxMOD is in reset
-        C1BTR = state->baudrate;
-        C1MOD = 0x4;    // CAN in normal operation mode
-        C1IER = 0x01 | (1 << 7) | (1 << 3) | (1 << 5);    // Enable receive interrupts
-    }
-    else {
-        C2MOD = 1;    // Reset CAN
-        C2IER = 0;    // Disable Receive Interrupt
-        C2GSR = 0;    // Reset error counter when CANxMOD is in reset
-        C2BTR = state->baudrate;
-        C2MOD = 0x0;    // CAN in normal operation mode
-        C2IER = 0x01 | (1 << 7) | (1 << 3) | (1 << 5);    // Enable receive interrupts
+        LPC17_GpioInternal_ClosePin(canPins[controllerIndex][CAN_TX_PIN].number);
+        LPC17_GpioInternal_ClosePin(canPins[controllerIndex][CAN_RX_PIN].number);
     }
 
     return TinyCLR_Result::Success;
@@ -2541,6 +2519,8 @@ TinyCLR_Result LPC17_Can_WriteMessage(const TinyCLR_Can_Controller* self, const 
 
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
     auto controllerIndex = state->controllerIndex;
+
+    if (!state->enable) return TinyCLR_Result::InvalidOperation;
 
     if (isExtendedId)
         flags |= 0x80000000;
@@ -2608,6 +2588,8 @@ TinyCLR_Result LPC17_Can_ReadMessage(const TinyCLR_Can_Controller* self, TinyCLR
 
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
 
+    if (!state->enable) return TinyCLR_Result::InvalidOperation;
+
     if (state->can_rx_count) {
         DISABLE_INTERRUPTS_SCOPED(irq);
 
@@ -2643,44 +2625,9 @@ TinyCLR_Result LPC17_Can_SetBitTiming(const TinyCLR_Can_Controller* self, const 
     uint32_t synchronizationJumpWidth = timing->SynchronizationJumpWidth;
     bool useMultiBitSampling = timing->UseMultiBitSampling;
 
-    LPC17xx_SYSCON &SYSCON = *(LPC17xx_SYSCON *)(size_t)(LPC17xx_SYSCON::c_SYSCON_Base);
-
-    auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
-
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
-    auto controllerIndex = state->controllerIndex;
-
-    if (state->canRxMessagesFifo == nullptr)
-        state->canRxMessagesFifo = (LPC17_Can_Message*)memoryProvider->Allocate(memoryProvider, state->can_rxBufferSize * sizeof(LPC17_Can_Message));
-
-    if (state->canRxMessagesFifo == nullptr) {
-        return TinyCLR_Result::OutOfMemory;
-    }
 
     state->baudrate = ((phase2 - 1) << 20) | ((phase1 - 1) << 16) | ((baudratePrescaler - 1) << 0);
-
-    if (controllerIndex == 0) {
-        SYSCON.PCLKSEL0 |= (1 << 26) | (1 << 30);//CAN1 CAN2 filter
-
-        C1MOD = 1;    // Reset CAN
-        C1IER = 0;    // Disable Receive Interrupt
-        C1GSR = 0;    // Reset error counter when CANxMOD is in reset
-        C1BTR = state->baudrate;
-        C1MOD = 0x4;    // CAN in normal operation mode
-        C1IER = 0x01 | (1 << 7) | (1 << 3) | (1 << 5);    // Enable receive interrupts
-    }
-    else {
-        SYSCON.PCLKSEL0 |= (1 << 28) | (1 << 30);//CAN1 CAN2 filter
-
-        C2MOD = 1;    // Reset CAN
-        C2IER = 0;    // Disable Receive Interrupt
-        C2GSR = 0;    // Reset error counter when CANxMOD is in reset
-        C2BTR = state->baudrate;
-        C2MOD = 0x0;    // CAN in normal operation mode
-        C2IER = 0x01 | (1 << 3) | (1 << 5) | (1 << 7);        // Enable receive interrupts
-    }
-
-    LPC17_InterruptInternal_Activate(CAN_IRQn, (uint32_t*)&LPC17_Can_RxInterruptHandler, 0);
 
     return TinyCLR_Result::Success;
 }
@@ -2690,6 +2637,10 @@ size_t LPC17_Can_GetMessagesToRead(const TinyCLR_Can_Controller* self) {
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
 
     return state->can_rx_count;
+}
+
+size_t LPC17_Can_GetMessagesToWrite(const TinyCLR_Can_Controller* self) {
+    return 0;
 }
 
 TinyCLR_Result LPC17_Can_SetMessageReceivedHandler(const TinyCLR_Can_Controller* self, TinyCLR_Can_MessageReceivedHandler handler) {
@@ -2743,11 +2694,15 @@ TinyCLR_Result LPC17_Can_SetGroupFilters(const TinyCLR_Can_Controller* self, con
     auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
 
     _lowerBoundFilters = (uint32_t*)memoryProvider->Allocate(memoryProvider, count * sizeof(uint32_t));
+
+    if (!_lowerBoundFilters) {
+        return  TinyCLR_Result::OutOfMemory;
+    }
+
     _upperBoundFilters = (uint32_t*)memoryProvider->Allocate(memoryProvider, count * sizeof(uint32_t));
 
-    if (!_lowerBoundFilters || !_upperBoundFilters) {
+    if (!_upperBoundFilters) {
         memoryProvider->Free(memoryProvider, _lowerBoundFilters);
-        memoryProvider->Free(memoryProvider, _upperBoundFilters);
 
         return  TinyCLR_Result::OutOfMemory;
     }
@@ -2817,16 +2772,34 @@ size_t LPC17_Can_GetReadBufferSize(const TinyCLR_Can_Controller* self) {
 
 TinyCLR_Result LPC17_Can_SetReadBufferSize(const TinyCLR_Can_Controller* self, size_t size) {
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
-    auto controllerIndex = state->controllerIndex;
 
-    if (size > 3) {
+    auto controllerIndex = state->controllerIndex;
+    TinyCLR_Result result = TinyCLR_Result::Success;
+
+    if (size > CAN_MINIMUM_MESSAGES_LEFT) {
         state->can_rxBufferSize = size;
-        return TinyCLR_Result::Success;
+        result = TinyCLR_Result::Success;
     }
     else {
         state->can_rxBufferSize = canDefaultBuffersSize[controllerIndex];
-        return TinyCLR_Result::ArgumentInvalid;;
+        result = TinyCLR_Result::ArgumentInvalid;
     }
+
+    auto memoryProvider = (const TinyCLR_Memory_Manager*)apiManager->FindDefault(apiManager, TinyCLR_Api_Type::MemoryManager);
+
+    if (state->canRxMessagesFifo != nullptr) {
+        memoryProvider->Free(memoryProvider, state->canRxMessagesFifo);
+
+        state->canRxMessagesFifo = nullptr;
+    }
+
+    state->canRxMessagesFifo = (LPC17_Can_Message*)memoryProvider->Allocate(memoryProvider, state->can_rxBufferSize * sizeof(LPC17_Can_Message));
+
+    if (state->canRxMessagesFifo == nullptr) {
+        result = TinyCLR_Result::OutOfMemory;
+    }
+
+    return result;
 }
 
 size_t LPC17_Can_GetWriteBufferSize(const TinyCLR_Can_Controller* self) {
@@ -2843,24 +2816,78 @@ TinyCLR_Result LPC17_Can_SetWriteBufferSize(const TinyCLR_Can_Controller* self, 
 
 void LPC17_Can_Reset() {
     for (int i = 0; i < TOTAL_CAN_CONTROLLERS; i++) {
-        canStates[i].canRxMessagesFifo = nullptr;
-
         LPC17_Can_Release(&canControllers[i]);
 
         canStates[i].initializeCount = 0;
+        canStates[i].canRxMessagesFifo = nullptr;
     }
 }
 
 TinyCLR_Result LPC17_Can_Enable(const TinyCLR_Can_Controller* self) {
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
-    state->enable = true;
+    auto controllerIndex = state->controllerIndex;
+
+    if (state->baudrate == 0) {
+        return TinyCLR_Result::InvalidOperation; // Can not enable if baudrate = 0;
+    }
+
+    if (!state->enable) {
+        if (controllerIndex == 0)
+            LPC_SC->PCONP |= (1 << 13);    // Enable clock to the peripheral
+
+        if (controllerIndex == 1)
+            LPC_SC->PCONP |= (1 << 14);    // Enable clock to the peripheral
+
+        CAN_SetACCF(ACCF_BYPASS);
+
+        LPC17xx_SYSCON &SYSCON = *(LPC17xx_SYSCON *)(size_t)(LPC17xx_SYSCON::c_SYSCON_Base);
+
+        if (controllerIndex == 0) {
+            SYSCON.PCLKSEL0 |= (1 << 26) | (1 << 30);//CAN1 CAN2 filter
+
+            C1MOD = 1;    // Reset CAN
+            C1IER = 0;    // Disable Receive Interrupt
+            C1GSR = 0;    // Reset error counter when CANxMOD is in reset
+            C1BTR = state->baudrate;
+            C1MOD = 0x4;    // CAN in normal operation mode
+            C1IER = 0x01 | (1 << 7) | (1 << 3) | (1 << 5);    // Enable receive interrupts
+        }
+        else {
+            SYSCON.PCLKSEL0 |= (1 << 28) | (1 << 30);//CAN1 CAN2 filter
+
+            C2MOD = 1;    // Reset CAN
+            C2IER = 0;    // Disable Receive Interrupt
+            C2GSR = 0;    // Reset error counter when CANxMOD is in reset
+            C2BTR = state->baudrate;
+            C2MOD = 0x0;    // CAN in normal operation mode
+            C2IER = 0x01 | (1 << 3) | (1 << 5) | (1 << 7);        // Enable receive interrupts
+        }
+
+        LPC17_InterruptInternal_Activate(CAN_IRQn, (uint32_t*)&LPC17_Can_RxInterruptHandler, 0);
+
+        state->enable = true;
+    }
 
     return TinyCLR_Result::Success;
 }
 
 TinyCLR_Result LPC17_Can_Disable(const TinyCLR_Can_Controller* self) {
     auto state = reinterpret_cast<CanState*>(self->ApiInfo->State);
-    state->enable = false;
+    auto controllerIndex = state->controllerIndex;
+
+    if (state->enable) {
+        if (controllerIndex == 0) {
+            C1IER = 0; // Disable Receive Interrupt
+            LPC_SC->PCONP &= ~(1 << 13); // Disable clock to the peripheral
+
+        }
+        else {
+            C2IER = 0; // Disable Receive Interrupt
+            LPC_SC->PCONP &= ~(1 << 14); // Disable clock to the peripheral
+        }
+
+        state->enable = false;
+    }
 
     return TinyCLR_Result::Success;
 }
