@@ -162,16 +162,6 @@
       "args": [
         "build netduino3 clean"
       ]
-    },
-    {
-      "taskName": "tâche-build",
-      "appliesTo": "build.bat",
-      "type": "launch"
-    },
-    {
-      "taskName": "tâche-build",
-      "appliesTo": "build.bat",
-      "type": "launch"
     }
   ]
 }
